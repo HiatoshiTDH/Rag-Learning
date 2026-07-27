@@ -1,0 +1,6 @@
+anthropic
+voyageai
+qdrant-client
+fastapi           # memory service tách khỏi game process
+uvicorn
+pytest
