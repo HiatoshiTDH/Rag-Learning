@@ -1,0 +1,7 @@
+anthropic
+voyageai
+qdrant-client
+requests          # gọi GROBID + arXiv API
+lxml              # parse TEI XML từ GROBID
+rank-bm25         # BM25 cho hybrid search
+pytest

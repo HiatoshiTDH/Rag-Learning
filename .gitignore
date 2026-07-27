@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+*.sqlite
+*.db
+
+# dữ liệu local không commit
+plan-03-paper-assistant/data/papers/*.pdf
+plan-08-npc-memory/data/*
+!**/data/**/.gitkeep
