@@ -1,0 +1,5 @@
+# 10 paper khởi đầu — mỗi dòng một arXiv id (chọn paper BẠN ĐÃ ĐỌC KỸ,
+# vì golden set ở Phase 2 cần bạn biết đáp án nằm ở paper/section nào).
+# Ví dụ format:
+# 2304.03442    # Generative Agents (Park et al. 2023)
+# 2309.12345

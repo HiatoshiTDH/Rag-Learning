@@ -4,4 +4,8 @@ qdrant-client
 requests          # gọi GROBID + arXiv API
 lxml              # parse TEI XML từ GROBID
 rank-bm25         # BM25 cho hybrid search
+python-dotenv     # đọc .env
 pytest
+
+# Phương án local-free (thay Voyage) — bỏ comment nếu dùng:
+# sentence-transformers   # bge-m3 (embedding) + bge-reranker-v2-m3 (re-rank)
