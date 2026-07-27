@@ -6,6 +6,9 @@ __pycache__/
 *.db
 
 # dữ liệu local không commit
-plan-03-paper-assistant/data/papers/*.pdf
+plan-03-paper-assistant/data/papers/*
+plan-03-paper-assistant/data/qdrant/
+plan-03-paper-assistant/data/metadata.sqlite
 plan-08-npc-memory/data/*
 !**/data/**/.gitkeep
+.pytest_cache/

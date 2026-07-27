@@ -34,6 +34,9 @@ Checklist chi tiết trong [SETUP.md](SETUP.md). Tóm tắt:
 
 ## P1 — Ingest pipeline (tuần 1, ~12–16h)
 
+> **Trạng thái: ✅ code + test xong** (12 test offline pass — parse TEI, chunking, index, search, idempotency).
+> Còn lại của P1: chạy live trên máy có Docker — `docker compose up -d`, điền seed_papers.txt, rồi `python -m src.ingest_all` (task 1.1/1.2 phần mạng đã code sẵn, chỉ cần chạy).
+
 | # | Task | File | DoD | Giờ |
 |---|------|------|-----|-----|
 | 1.1 | Tải paper từ arXiv API theo id/keyword, lưu PDF + metadata | `src/ingest.py::fetch_arxiv` | 10 PDF trong `data/papers/`, metadata JSON kèm theo | 2 |
