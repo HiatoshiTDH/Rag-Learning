@@ -1,5 +1,11 @@
 # Plan 3 — Trợ lý đọc & tra cứu paper nghiên cứu (chi tiết)
 
+> 🗂 **Bộ tài liệu của plan này:**
+> - README.md (file này) — kiến trúc & lý do thiết kế
+> - [PLAN.md](PLAN.md) — kế hoạch thực thi full: phase, task, DoD, ước lượng giờ, rủi ro, decision log
+> - [SETUP.md](SETUP.md) — mọi thứ cần chuẩn bị: phần mềm, API key, chi phí, checklist Phase 0
+> - [docker-compose.yml](docker-compose.yml) + [.env.example](.env.example) — chạy GROBID/Qdrant ngay
+
 > Mức độ dùng RAG: ★★★★☆ · Độ khó: Vừa · Thời gian: 3–4 tuần
 > Phù hợp nếu bạn đang theo hướng nghiên cứu (robotics, human augmentation, SRL…) và muốn một công cụ dùng thật hằng ngày, không chỉ là bài tập.
 
