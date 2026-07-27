@@ -3,6 +3,8 @@
 > Mức độ dùng RAG: ★★★★★ · Độ khó: Khó · Thời gian: 4–8 tuần
 > Dựa trên kiến trúc **Generative Agents** (Park et al., Stanford 2023) — điều chỉnh cho ràng buộc thực tế của game: latency, cost, và người chơi cố tình phá.
 
+> **📍 Trạng thái:** code P1→P5 xong, 30 test offline pass. Kế hoạch thực thi + trạng thái từng task: **[PLAN.md](PLAN.md)** · Môi trường: [SETUP.md](SETUP.md) · Verify trên máy nhà: [TEST_AT_HOME.md](TEST_AT_HOME.md)
+
 ## 1. Mục tiêu & Hành vi mong muốn
 
 NPC nhớ và hành xử nhất quán qua nhiều session chơi:

@@ -2,5 +2,7 @@ anthropic
 voyageai
 qdrant-client
 fastapi           # memory service tách khỏi game process
-uvicorn
+uvicorn[standard] # standard: có websockets cho WS /talk
+httpx             # TestClient của fastapi cần
+python-dotenv
 pytest

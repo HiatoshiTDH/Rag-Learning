@@ -10,5 +10,6 @@ plan-03-paper-assistant/data/papers/*
 plan-03-paper-assistant/data/qdrant/
 plan-03-paper-assistant/data/metadata.sqlite
 plan-08-npc-memory/data/*
+!plan-08-npc-memory/data/personas.example.json
 !**/data/**/.gitkeep
 .pytest_cache/
