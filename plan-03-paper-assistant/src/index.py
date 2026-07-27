@@ -48,6 +48,10 @@ def _connect_db(db_path: Path | None = None) -> sqlite3.Connection:
             parent_section_id TEXT PRIMARY KEY, paper_id TEXT, paper_title TEXT,
             section TEXT, section_type TEXT, text TEXT
         );
+        CREATE TABLE IF NOT EXISTS chunks (
+            chunk_id TEXT PRIMARY KEY, parent_section_id TEXT, paper_id TEXT,
+            title TEXT, year INTEGER, section TEXT, section_type TEXT, text TEXT
+        );
     """)
     return conn
 
@@ -76,6 +80,13 @@ def save_metadata(paper: Paper, chunks: list[Chunk], db_path: Path | None = None
                 (parent_id, paper.paper_id, paper.title,
                  group[0].section, group[0].section_type,
                  "\n\n".join(c.text for c in group)),
+            )
+        # Bảng chunks: nguồn corpus cho BM25 (hybrid search ở P3)
+        for c in chunks:
+            conn.execute(
+                "INSERT OR REPLACE INTO chunks VALUES (?,?,?,?,?,?,?,?)",
+                (c.chunk_id, c.parent_section_id, c.paper_id, c.title,
+                 c.year, c.section, c.section_type, c.text),
             )
     conn.close()
 
@@ -129,6 +140,31 @@ def search(query: str, top_k: int = 20, filters: dict | None = None,
         with_payload=True,
     ).points
     return [{**h.payload, "score": h.score} for h in hits]
+
+
+def load_chunks(db_path: Path | None = None, filters: dict | None = None) -> list[dict]:
+    """Toàn bộ chunk từ SQLite — corpus cho BM25 (P3). Filter tùy chọn."""
+    conn = _connect_db(db_path)
+    sql = "SELECT chunk_id, parent_section_id, paper_id, title, year, section, section_type, text FROM chunks"
+    params: list = []
+    if filters:
+        conds = []
+        for k, v in filters.items():
+            conds.append(f"{k} = ?")
+            params.append(v)
+        sql += " WHERE " + " AND ".join(conds)
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    keys = ["chunk_id", "parent_section_id", "paper_id", "title", "year", "section", "section_type", "text"]
+    return [dict(zip(keys, r)) for r in rows]
+
+
+def list_papers(db_path: Path | None = None) -> list[dict]:
+    """Danh sách paper đã index — cho CLI `list` và router nhận diện paper_id trong câu hỏi."""
+    conn = _connect_db(db_path)
+    rows = conn.execute("SELECT paper_id, title, year FROM papers ORDER BY year DESC").fetchall()
+    conn.close()
+    return [dict(zip(["paper_id", "title", "year"], r)) for r in rows]
 
 
 def get_section(parent_section_id: str, db_path: Path | None = None) -> dict | None:

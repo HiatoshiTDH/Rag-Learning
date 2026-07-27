@@ -1,0 +1,7 @@
+# Copy file này thành golden_set.jsonl rồi thay bằng ~30 câu hỏi THẬT trên paper BẠN ĐÃ ĐỌC.
+# Mỗi dòng một JSON (dòng bắt đầu bằng # sẽ bị bỏ qua):
+#   question             : câu hỏi như bạn sẽ hỏi thật (trộn cả tiếng Việt lẫn tiếng Anh)
+#   expect_paper         : arXiv id của paper chứa đáp án
+#   expect_section_type  : (tùy chọn) abstract|intro|related_work|method|experiment|result|conclusion
+{"question": "How do generative agents decide which memories to retrieve?", "expect_paper": "2304.03442", "expect_section_type": "method"}
+{"question": "NPC dùng cơ chế gì để nén ký ức vụn thành nhận định cấp cao?", "expect_paper": "2304.03442"}

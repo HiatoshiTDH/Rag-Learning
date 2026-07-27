@@ -4,6 +4,8 @@
 > - README.md (file này) — kiến trúc & lý do thiết kế
 > - [PLAN.md](PLAN.md) — kế hoạch thực thi full: phase, task, DoD, ước lượng giờ, rủi ro, decision log
 > - [SETUP.md](SETUP.md) — mọi thứ cần chuẩn bị: phần mềm, API key, chi phí, checklist Phase 0
+> - [TEST_AT_HOME.md](TEST_AT_HOME.md) — **bài test tổng thể khi về máy nhà** (7 bước + troubleshooting)
+> - [scripts/smoke_test.sh](scripts/smoke_test.sh) — bản tự động của bài test trên
 > - [docker-compose.yml](docker-compose.yml) + [.env.example](.env.example) — chạy GROBID/Qdrant ngay
 
 > Mức độ dùng RAG: ★★★★☆ · Độ khó: Vừa · Thời gian: 3–4 tuần
