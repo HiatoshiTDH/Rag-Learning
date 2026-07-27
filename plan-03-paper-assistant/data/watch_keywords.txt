@@ -1,0 +1,5 @@
+# Keyword để watch_arxiv quét hằng tuần — mỗi dòng: <keyword> [| category]
+# Ví dụ (sửa theo hướng nghiên cứu của bạn):
+# exoskeleton control | cs.RO
+# human augmentation
+# retrieval augmented generation | cs.CL

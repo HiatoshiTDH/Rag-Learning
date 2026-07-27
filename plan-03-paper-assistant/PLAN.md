@@ -3,6 +3,11 @@
 > Tài liệu này là **kế hoạch thực thi chi tiết** — chia phase, task, definition of done, ước lượng giờ.
 > Kiến trúc & lý do thiết kế: xem [README.md](README.md). Chuẩn bị môi trường: xem [SETUP.md](SETUP.md).
 
+> **📍 TRẠNG THÁI HIỆN TẠI: toàn bộ code P1→P5 đã viết xong, 26 test offline pass.**
+> Việc còn lại làm trên máy nhà (cần Docker + API key + mạng tới arXiv):
+> chạy theo **[TEST_AT_HOME.md](TEST_AT_HOME.md)** — hoặc `./scripts/smoke_test.sh` cho bản tự động.
+> Phần code duy nhất chưa làm: 5.4 UI web (tùy chọn, chỉ làm nếu CLI thấy thiếu).
+
 ## Nguyên tắc thực thi
 
 1. **Mỗi phase kết thúc bằng một thứ chạy được** — không có phase nào "chỉ viết code chưa test được".

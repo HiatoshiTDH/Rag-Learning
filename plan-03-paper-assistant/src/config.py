@@ -26,3 +26,15 @@ SQLITE_PATH = DATA_DIR / "metadata.sqlite"
 
 COLLECTION = "papers"
 MAX_CHUNK_TOKENS = 800  # ước lượng ~4 ký tự / token
+
+# Models — answer dùng opus cho chất lượng; tác vụ phụ (expansion) dùng haiku
+# cho rẻ/nhanh (xem SETUP.md mục chi phí). Đổi qua env nếu muốn.
+ANSWER_MODEL = os.getenv("ANSWER_MODEL", "claude-opus-5")
+EXPAND_MODEL = os.getenv("EXPAND_MODEL", "claude-haiku-4-5")
+
+# "voyage" | "fake" (test/offline) | "none" (bỏ qua re-rank, chỉ cắt top-k)
+RERANK_BACKEND = os.getenv("RERANK_BACKEND", "voyage")
+
+GOLDEN_SET = DATA_DIR / "golden_set.jsonl"
+EXPERIMENTS_FILE = ROOT / "EXPERIMENTS.md"
+WATCH_FILE = DATA_DIR / "watch_keywords.txt"
