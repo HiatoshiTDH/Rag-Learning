@@ -45,6 +45,8 @@ Tài liệu này liệt kê các dự án/plan mà **hệ thống RAG (Retrieval
 
 ### 3. Trợ lý đọc & tra cứu paper nghiên cứu
 
+> 📄 **Chi tiết đầy đủ:** [plans/plan-03-paper-assistant.md](plans/plan-03-paper-assistant.md)
+
 - **Mô tả:** Index paper từ arXiv/Semantic Scholar theo hướng nghiên cứu (VD: robotics, human augmentation, SRL), hỏi đáp xuyên nhiều paper, so sánh phương pháp giữa các paper, tìm related work.
 - **Vì sao RAG nặng:** Paper có cấu trúc đặc thù (abstract, method, equation, reference) — chunking ngây thơ sẽ phá hỏng ngữ cảnh. Câu trả lời phải trích dẫn đúng paper, đúng section, nếu không thì vô dụng cho việc nghiên cứu.
 - **Kỹ thuật học được:** Structure-aware chunking, citation tracking, parent-document retrieval (retrieve chunk nhỏ nhưng đưa cả section vào context), query expansion theo thuật ngữ chuyên ngành.
@@ -86,6 +88,8 @@ Tài liệu này liệt kê các dự án/plan mà **hệ thống RAG (Retrieval
 ## Nhóm 3 — Nâng cao (RAG là cả một hệ thống, không chỉ một pipeline)
 
 ### 8. NPC game có trí nhớ dài hạn (Memory RAG)
+
+> 📄 **Chi tiết đầy đủ:** [plans/plan-08-npc-memory.md](plans/plan-08-npc-memory.md)
 
 - **Mô tả:** NPC nhớ mọi tương tác với người chơi qua nhiều session — "lần trước cậu hứa mang thuốc cho tôi", "cậu từng phản bội làng này". Rất hợp nếu đang làm game Unity/Roblox.
 - **Vì sao RAG nặng:** Trí nhớ NPC chính là một hệ RAG hoàn chỉnh: mỗi sự kiện được lưu thành memory record, khi hội thoại thì retrieve theo **3 trục cùng lúc: liên quan (semantic) + gần đây (recency) + quan trọng (importance)** — đúng kiến trúc của paper Generative Agents (Stanford). Còn thêm bài toán reflection: định kỳ nén các memory vụn thành nhận định cấp cao.
