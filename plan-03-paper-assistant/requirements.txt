@@ -1,11 +1,11 @@
 anthropic
 voyageai
 qdrant-client
-requests          # gọi GROBID + arXiv API
-lxml              # parse TEI XML từ GROBID
-rank-bm25         # BM25 cho hybrid search
-python-dotenv     # đọc .env
+requests          # calls GROBID + the arXiv API
+lxml              # parses TEI XML from GROBID
+rank-bm25         # BM25 for hybrid search
+python-dotenv     # reads .env
 pytest
 
-# Phương án local-free (thay Voyage) — bỏ comment nếu dùng:
+# Local-free option (replaces Voyage) — uncomment to use:
 # sentence-transformers   # bge-m3 (embedding) + bge-reranker-v2-m3 (re-rank)

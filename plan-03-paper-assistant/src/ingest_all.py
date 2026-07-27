@@ -1,7 +1,7 @@
-"""Task 1.6 — chạy trọn pipeline: python -m src.ingest_all
+"""Task 1.6 — run the full pipeline: python -m src.ingest_all
 
-Đọc data/seed_papers.txt -> tải PDF -> GROBID -> chunk -> index.
-Idempotent: PDF/TEI đã có thì dùng lại; upsert không tạo duplicate.
+Reads data/seed_papers.txt -> download PDFs -> GROBID -> chunk -> index.
+Idempotent: existing PDF/TEI files are reused; upserts create no duplicates.
 """
 
 import json
@@ -24,7 +24,7 @@ def ingest_one(arxiv_id: str, embedder, client) -> int:
     if not pdf_path.exists():
         fetch_by_ids([arxiv_id])
 
-    # Cache kết quả GROBID — parse lại PDF là bước chậm nhất
+    # Cache the GROBID result — re-parsing the PDF is the slowest step
     if tei_path.exists():
         tei = etree.fromstring(tei_path.read_bytes())
     else:
@@ -37,28 +37,28 @@ def ingest_one(arxiv_id: str, embedder, client) -> int:
 
     save_metadata(paper, chunks)
     n = upsert_chunks(chunks, embedder=embedder, client=client)
-    print(f"  {arxiv_id}: {len(paper.sections)} section, {n} chunk")
+    print(f"  {arxiv_id}: {len(paper.sections)} sections, {n} chunks")
     return n
 
 
 def main() -> None:
     ids = read_seed_file()
     if not ids:
-        sys.exit(f"Chưa có paper nào trong {config.SEED_FILE} — thêm arXiv id vào trước (SETUP.md mục 4).")
+        sys.exit(f"No papers in {config.SEED_FILE} yet — add arXiv ids first (SETUP.md section 4).")
 
     embedder = get_embedder()
     client = get_qdrant()
-    print(f"Ingest {len(ids)} paper (embedder: {type(embedder).__name__})")
+    print(f"Ingesting {len(ids)} papers (embedder: {type(embedder).__name__})")
 
     total, failed = 0, []
     for arxiv_id in ids:
         try:
             total += ingest_one(arxiv_id, embedder, client)
-        except Exception as e:  # paper lỗi thì log và đi tiếp — đừng chết cả batch
+        except Exception as e:  # log a bad paper and move on — don't kill the batch
             failed.append(arxiv_id)
-            print(f"  {arxiv_id}: LỖI — {e}")
+            print(f"  {arxiv_id}: ERROR — {e}")
 
-    print(f"\nXong: {total} chunk. Lỗi: {failed or 'không'}")
+    print(f"\nDone: {total} chunks. Errors: {failed or 'none'}")
 
 
 if __name__ == "__main__":

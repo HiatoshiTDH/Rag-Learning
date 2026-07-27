@@ -1,4 +1,4 @@
-"""Wrapper mỏng quanh Claude API — để mọi module khác inject fake LLM khi test."""
+"""Thin wrapper around the Claude API — so every other module can inject a fake LLM in tests."""
 
 import anthropic
 
@@ -9,12 +9,12 @@ _client: anthropic.Anthropic | None = None
 def _get_client() -> anthropic.Anthropic:
     global _client
     if _client is None:
-        _client = anthropic.Anthropic()  # đọc ANTHROPIC_API_KEY từ env
+        _client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from the env
     return _client
 
 
 def complete(prompt: str, model: str, max_tokens: int = 1024, system: str | None = None) -> str:
-    """Một lượt hỏi-đáp text đơn giản (dùng cho query expansion, map step...)."""
+    """One simple text Q&A turn (used for query expansion, the map step...)."""
     kwargs: dict = dict(
         model=model,
         max_tokens=max_tokens,

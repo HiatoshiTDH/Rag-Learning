@@ -1,5 +1,5 @@
-"""Fixture chung — mọi test chạy OFFLINE: HashEmbedder + Qdrant in-memory +
-SQLite tạm + ScriptedLLM. Không cần docker, không cần API key."""
+"""Shared fixtures — every test runs OFFLINE: HashEmbedder + in-memory Qdrant +
+temp SQLite + ScriptedLLM. No docker, no API keys."""
 
 from datetime import datetime, timedelta, timezone
 
@@ -13,7 +13,7 @@ from src.memory_store import MemoryRecord, MemoryStore
 
 @pytest.fixture(autouse=True)
 def _force_offline(monkeypatch):
-    """Test luôn offline bất kể .env — không lỡ tay đốt API call khi chạy pytest."""
+    """Tests are always offline regardless of .env — no accidental API spend from pytest."""
     monkeypatch.setattr(config, "EMBED_BACKEND", "fake")
     monkeypatch.setattr(config, "LLM_BACKEND", "none")
 
@@ -35,6 +35,6 @@ def now() -> datetime:
 def seed(store: MemoryStore, npc_id: str, text: str, importance: int,
          hours_ago: float = 0.0, type: str = "observation",
          now: datetime | None = None) -> MemoryRecord:
-    """Ghi 1 ký ức lùi về quá khứ `hours_ago` giờ."""
+    """Write one memory backdated by `hours_ago` hours."""
     ts = (now or datetime.now(timezone.utc)) - timedelta(hours=hours_ago)
     return store.add(MemoryRecord.new(npc_id, type, text, importance, created_at=ts))

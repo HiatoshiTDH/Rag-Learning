@@ -5,7 +5,7 @@ __pycache__/
 *.sqlite
 *.db
 
-# dữ liệu local không commit
+# local data, never committed
 plan-03-paper-assistant/data/papers/*
 plan-03-paper-assistant/data/qdrant/
 plan-03-paper-assistant/data/metadata.sqlite

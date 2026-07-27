@@ -1,7 +1,7 @@
 """P2-P4 — Query pipeline: expansion -> hybrid (vector + BM25, RRF) -> re-rank -> parent-doc.
 
-Entry point chính: retrieve(question, ...) — answer.py / CLI / eval đều đi qua đây.
-Mọi dependency (embedder, qdrant client, db_path, llm) đều inject được để test offline.
+Main entry point: retrieve(question, ...) — answer.py / CLI / eval all go through it.
+Every dependency (embedder, qdrant client, db_path, llm) is injectable for offline tests.
 """
 
 import re
@@ -22,7 +22,7 @@ def _tokenize(text: str) -> list[str]:
 
 # ------------------------------------------------------------------ BM25 (3.1)
 
-# Cache corpus theo (db_path, mtime) — index lại thì tự làm mới
+# Cache the corpus by (db_path, mtime) — re-indexing refreshes it automatically
 _bm25_cache: dict = {}
 
 
@@ -33,22 +33,22 @@ def _get_bm25(db_path: Path | None, filters: dict | None):
     if key not in _bm25_cache:
         chunks = load_chunks(db_path=db_path, filters=filters)
         bm25 = BM25Okapi([_tokenize(c["text"]) for c in chunks]) if chunks else None
-        _bm25_cache.clear()  # giữ đúng 1 corpus trong RAM
+        _bm25_cache.clear()  # keep exactly one corpus in RAM
         _bm25_cache[key] = (bm25, chunks)
     return _bm25_cache[key]
 
 
 def bm25_search(query: str, top_k: int = 20, filters: dict | None = None,
                 db_path: Path | None = None) -> list[dict]:
-    """BM25 trên bảng chunks — bắt thuật ngữ/tên riêng mà vector search hay trượt."""
+    """BM25 over the chunks table — catches terminology/proper nouns that vector search misses."""
     bm25, chunks = _get_bm25(db_path, filters)
     if bm25 is None:
         return []
     q_tokens = _tokenize(query)
     scores = bm25.get_scores(q_tokens)
     if not any(s > 0 for s in scores):
-        # Corpus quá nhỏ (1-2 doc sau filter) -> IDF=0, BM25 suy biến.
-        # Fallback: đếm từ trùng — vẫn trả kết quả khi mới ingest ít paper.
+        # Corpus too small (1-2 docs after filtering) -> IDF=0, BM25 degenerates.
+        # Fallback: shared-token count — still returns results with few papers ingested.
         q_set = set(q_tokens)
         scores = [float(len(q_set & set(_tokenize(c["text"])))) for c in chunks]
     ranked = sorted(zip(chunks, scores), key=lambda x: x[1], reverse=True)
@@ -58,7 +58,7 @@ def bm25_search(query: str, top_k: int = 20, filters: dict | None = None,
 # ------------------------------------------------------------------- RRF (3.1)
 
 def rrf_fuse(result_lists: list[list[dict]], k: int = 60) -> list[dict]:
-    """Reciprocal Rank Fusion — gộp nhiều bảng xếp hạng, không cần chuẩn hóa score."""
+    """Reciprocal Rank Fusion — merges multiple rankings, no score normalization needed."""
     fused: dict[str, dict] = {}
     scores: dict[str, float] = {}
     for results in result_lists:
@@ -74,7 +74,7 @@ def rrf_fuse(result_lists: list[list[dict]], k: int = 60) -> list[dict]:
 
 def hybrid_search(queries: list[str], filters: dict | None = None, top_k: int = 40,
                   embedder=None, client=None, db_path: Path | None = None) -> list[dict]:
-    """Với mỗi biến thể câu hỏi: vector top-20 + BM25 top-20, gộp tất cả bằng RRF."""
+    """For each question variant: vector top-20 + BM25 top-20, all merged with RRF."""
     result_lists = []
     for q in queries:
         result_lists.append(vector_search(q, top_k=20, filters=filters,
@@ -85,20 +85,19 @@ def hybrid_search(queries: list[str], filters: dict | None = None, top_k: int = 
 
 # ------------------------------------------------------------- expansion (4.1)
 
-_EXPAND_PROMPT = """Câu hỏi của người dùng về các paper nghiên cứu:
+_EXPAND_PROMPT = """A user's question about research papers:
 
 {question}
 
-Viết lại câu hỏi này thành {n} biến thể để tăng khả năng tìm đúng đoạn văn trong paper:
-- Nếu câu hỏi không phải tiếng Anh, biến thể ĐẦU TIÊN phải là bản dịch tiếng Anh
-  (paper hầu hết viết bằng tiếng Anh).
-- Các biến thể còn lại: dùng thuật ngữ chuyên ngành/từ đồng nghĩa mà tác giả paper
-  có thể đã dùng.
-Chỉ in ra mỗi dòng một biến thể, không đánh số, không giải thích."""
+Rewrite this question into {n} variants to improve the chance of finding the right passages:
+- If the question is not in English, the FIRST variant must be an English translation
+  (papers are mostly written in English).
+- Remaining variants: use domain terminology/synonyms the paper's authors might have used.
+Print one variant per line only — no numbering, no explanations."""
 
 
 def expand_query(question: str, n: int = 3, llm=None) -> list[str]:
-    """Trả về [câu gốc] + n biến thể. `llm` là callable(prompt)->str, inject được khi test."""
+    """Returns [original question] + n variants. `llm` is a callable(prompt)->str, injectable in tests."""
     if llm is None:
         from src.llm import complete
 
@@ -113,7 +112,7 @@ def expand_query(question: str, n: int = 3, llm=None) -> list[str]:
 # ------------------------------------------------------------ parent-doc (3.4)
 
 def to_parent_sections(chunks: list[dict], db_path: Path | None = None) -> list[dict]:
-    """Thay chunk bằng toàn bộ section chứa nó, dedupe, giữ thứ tự xếp hạng."""
+    """Replace each chunk with its whole containing section, dedupe, keep ranking order."""
     seen: set[str] = set()
     sections: list[dict] = []
     for c in chunks:
@@ -127,21 +126,21 @@ def to_parent_sections(chunks: list[dict], db_path: Path | None = None) -> list[
     return sections
 
 
-# ------------------------------------------------------- entry point tổng hợp
+# ------------------------------------------------------- combined entry point
 
 def retrieve(question: str, filters: dict | None = None, top_k: int = 8,
              expand: bool = True, hybrid: bool = True, parent: bool = True,
              embedder=None, client=None, db_path: Path | None = None,
              reranker=None, llm=None) -> list[dict]:
-    """Pipeline đầy đủ. Trả về list section (parent=True) hoặc list chunk (parent=False).
+    """The full pipeline. Returns sections (parent=True) or chunks (parent=False).
 
-    Các cờ expand/hybrid/parent + reranker inject được cho phép eval.py đo từng tầng riêng.
+    The expand/hybrid/parent flags + injectable reranker let eval.py measure each layer separately.
     """
     queries = expand_query(question, llm=llm) if expand else [question]
     if hybrid:
         candidates = hybrid_search(queries, filters=filters, top_k=40,
                                    embedder=embedder, client=client, db_path=db_path)
-    else:  # v1: vector thuần — dùng làm baseline trong eval
+    else:  # v1: pure vector — used as the baseline in eval
         candidates = rrf_fuse([
             vector_search(q, top_k=40, filters=filters, embedder=embedder, client=client)
             for q in queries

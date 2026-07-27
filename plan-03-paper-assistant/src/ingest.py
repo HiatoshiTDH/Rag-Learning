@@ -1,12 +1,12 @@
-"""P1 — Ingest: arXiv -> PDF -> GROBID -> TEI XML -> chunks có cấu trúc.
+"""P1 — Ingest: arXiv -> PDF -> GROBID -> TEI XML -> structured chunks.
 
-Chạy GROBID trước khi dùng phần parse PDF:
-    docker compose up -d      # xem SETUP.md
+Start GROBID before using the PDF-parsing part:
+    docker compose up -d      # see SETUP.md
 
-Ba tầng tách bạch để test được từng tầng:
-  fetch_*        : mạng (arXiv)         — cần internet
-  grobid_parse   : mạng (GROBID local)  — cần docker
-  parse_tei/chunk: thuần dữ liệu        — test offline bằng fixture
+Three separate layers so each can be tested on its own:
+  fetch_*        : network (arXiv)         — needs internet
+  grobid_parse   : network (local GROBID)  — needs docker
+  parse_tei/chunk: pure data               — tested offline via fixtures
 """
 
 import json
@@ -24,7 +24,7 @@ ARXIV_API = "https://export.arxiv.org/api/query"
 TEI_NS = {"tei": "http://www.tei-c.org/ns/1.0"}
 ATOM_NS = {"a": "http://www.w3.org/2005/Atom"}
 
-# Chuẩn hóa tên section về loại cố định để filter được khi query
+# Normalize section titles to fixed types so queries can filter on them
 SECTION_TYPES = ["abstract", "intro", "related_work", "method", "experiment", "result", "conclusion", "other"]
 _SECTION_KEYWORDS = [
     ("related_work", ["related work", "background", "prior work"]),
@@ -61,15 +61,15 @@ class Chunk:
     authors: list[str]
     year: int
     section: str           # "3. Method"
-    section_type: str      # một trong SECTION_TYPES
+    section_type: str      # one of SECTION_TYPES
     text: str
-    parent_section_id: str # để làm parent-document retrieval
+    parent_section_id: str # for parent-document retrieval
 
 
-# ---------------------------------------------------------------- fetch (mạng)
+# -------------------------------------------------------------- fetch (network)
 
 def read_seed_file(path: Path | None = None) -> list[str]:
-    """Đọc data/seed_papers.txt — bỏ dòng trống và comment (#)."""
+    """Read data/seed_papers.txt — skip blank lines and comments (#)."""
     path = path or config.SEED_FILE
     ids = []
     for line in path.read_text().splitlines():
@@ -80,9 +80,10 @@ def read_seed_file(path: Path | None = None) -> list[str]:
 
 
 def fetch_by_ids(arxiv_ids: list[str], out_dir: Path | None = None) -> list[Path]:
-    """Task 1.1 — tải PDF + metadata JSON cho từng arXiv id.
+    """Task 1.1 — download PDF + metadata JSON for each arXiv id.
 
-    Idempotent: id nào đã có PDF thì bỏ qua. Lịch sự với arXiv: nghỉ 3s giữa các lượt tải.
+    Idempotent: ids that already have a PDF are skipped. Be polite to arXiv:
+    sleep 3s between downloads.
     """
     out_dir = out_dir or config.PAPERS_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -100,7 +101,7 @@ def fetch_by_ids(arxiv_ids: list[str], out_dir: Path | None = None) -> list[Path
         r.raise_for_status()
         entry = etree.fromstring(r.content).find("a:entry", ATOM_NS)
         if entry is None:
-            raise ValueError(f"arXiv không tìm thấy id: {arxiv_id}")
+            raise ValueError(f"arXiv id not found: {arxiv_id}")
 
         meta = {
             "paper_id": arxiv_id,
@@ -124,7 +125,7 @@ def fetch_by_ids(arxiv_ids: list[str], out_dir: Path | None = None) -> list[Path
 
 
 def fetch_arxiv(keyword: str, category: str = "", max_results: int = 20) -> list[str]:
-    """Tìm theo keyword (+category, VD cs.RO) rồi tải — trả về list arXiv id."""
+    """Search by keyword (+category, e.g. cs.RO) then download — returns arXiv ids."""
     query = f"all:{keyword}" + (f" AND cat:{category}" if category else "")
     r = requests.get(
         ARXIV_API,
@@ -145,9 +146,9 @@ def fetch_arxiv(keyword: str, category: str = "", max_results: int = 20) -> list
 # ------------------------------------------------------------- GROBID (docker)
 
 def grobid_parse(pdf_path: Path) -> etree._Element:
-    """Task 1.2 — POST PDF lên GROBID, trả về TEI XML root.
+    """Task 1.2 — POST the PDF to GROBID, return the TEI XML root.
 
-    Lưu ý: đừng dùng pdf-to-text thường — paper 2 cột sẽ bị trộn dòng.
+    Note: don't use plain pdf-to-text — two-column papers get their lines interleaved.
     """
     with open(pdf_path, "rb") as f:
         r = requests.post(
@@ -157,15 +158,15 @@ def grobid_parse(pdf_path: Path) -> etree._Element:
         )
     if r.status_code != 200:
         raise RuntimeError(
-            f"GROBID lỗi {r.status_code} với {pdf_path.name} — GROBID đã chạy chưa? (docker compose up -d)"
+            f"GROBID error {r.status_code} on {pdf_path.name} — is GROBID running? (docker compose up -d)"
         )
     return etree.fromstring(r.content)
 
 
-# ------------------------------------------------- parse TEI (thuần, test được)
+# ------------------------------------------------ parse TEI (pure, testable)
 
 def parse_tei(tei: etree._Element, paper_id: str, fallback_meta: dict | None = None) -> Paper:
-    """TEI XML -> Paper. `fallback_meta` (JSON từ arXiv) bù khi GROBID thiếu trường."""
+    """TEI XML -> Paper. `fallback_meta` (arXiv JSON) fills fields GROBID missed."""
     fb = fallback_meta or {}
 
     title = " ".join(("".join(tei.xpath(".//tei:titleStmt/tei:title//text()", namespaces=TEI_NS))).split())
@@ -186,7 +187,7 @@ def parse_tei(tei: etree._Element, paper_id: str, fallback_meta: dict | None = N
     ).strip()
 
     sections: list[Section] = []
-    # Chỉ lấy div trong <body> — <back> (References) tự động bị loại
+    # Only take divs inside <body> — <back> (References) is dropped automatically
     for i, div in enumerate(tei.xpath(".//tei:text/tei:body/tei:div", namespaces=TEI_NS)):
         head_el = div.find("tei:head", TEI_NS)
         head = " ".join("".join(head_el.itertext()).split()) if head_el is not None else f"Section {i + 1}"
@@ -210,7 +211,7 @@ def parse_tei(tei: etree._Element, paper_id: str, fallback_meta: dict | None = N
     )
 
 
-# ---------------------------------------------------- chunking (thuần, test được)
+# --------------------------------------------------- chunking (pure, testable)
 
 def _section_type(section_title: str) -> str:
     low = section_title.lower()
@@ -229,7 +230,7 @@ def _est_tokens(text: str) -> int:
 
 
 def _split_long(text: str, max_tokens: int) -> list[str]:
-    """Đoạn quá dài mới cắt tiếp — cắt theo câu, gom tới ngưỡng."""
+    """Only overly long paragraphs get split further — by sentence, packed to the limit."""
     if _est_tokens(text) <= max_tokens:
         return [text]
     sentences = re.split(r"(?<=[.!?])\s+", text)
@@ -246,11 +247,12 @@ def _split_long(text: str, max_tokens: int) -> list[str]:
 
 
 def chunk_paper(paper: Paper) -> list[Chunk]:
-    """Task 1.3 — structure-aware chunking (quy tắc: README mục 3.3).
+    """Task 1.3 — structure-aware chunking (rules: README section 3.3).
 
-    - Đơn vị chunk = đoạn văn trong section; đoạn >800 token mới cắt theo câu.
-    - Abstract luôn là một chunk riêng.
-    - References/Acknowledgements bị loại (phòng khi lọt vào body).
+    - Chunk unit = a paragraph within a section; only paragraphs >800 tokens
+      get split by sentence.
+    - The abstract is always its own chunk.
+    - References/Acknowledgements are dropped (in case they leak into the body).
     """
     common = dict(paper_id=paper.paper_id, title=paper.title, authors=paper.authors, year=paper.year)
     chunks: list[Chunk] = []
@@ -267,7 +269,7 @@ def chunk_paper(paper: Paper) -> list[Chunk]:
     seen_slugs: dict[str, int] = {}
     for section in paper.sections:
         if any(k in section.title.lower() for k in _REFERENCE_HEADS):
-            continue  # References gây nhiễu retrieval khủng khiếp — không index
+            continue  # References wreck retrieval with noise — never index them
         slug = _slug(section.title)
         seen_slugs[slug] = seen_slugs.get(slug, 0) + 1
         if seen_slugs[slug] > 1:

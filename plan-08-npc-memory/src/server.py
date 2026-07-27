@@ -1,17 +1,17 @@
-"""Tuần 3 — FastAPI memory service, tách khỏi game process.
+"""Week 3 — FastAPI memory service, separate from the game process.
 
-Game client (Unity/Roblox) chỉ gọi HTTP/WebSocket vào đây — không bao giờ
-gọi Claude API trực tiếp từ main thread của game (gây hitch/freeze).
+The game client (Unity/Roblox) only talks HTTP/WebSocket to this service — it
+never calls the Claude API from the game's main thread (hitches/freezes).
 
 Endpoints:
-  POST /npc/{npc_id}/event      -- ghi observation (game event -> memory)
-  POST /npc/{npc_id}/prefetch   -- người chơi vào trigger radius: retrieve
-                                   ký ức + dựng sẵn context TRƯỚC khi họ bấm nói
-  WS   /npc/{npc_id}/talk       -- hội thoại streaming (kiểu gõ chữ)
-  POST /npc/{npc_id}/reflect    -- chạy reflection (worker/ops gọi định kỳ)
-  GET  /npc/{npc_id}/memories   -- debug: soi stream ký ức
+  POST /npc/{npc_id}/event      -- write an observation (game event -> memory)
+  POST /npc/{npc_id}/prefetch   -- player entered the trigger radius: retrieve
+                                   memories + pre-build context BEFORE they press talk
+  WS   /npc/{npc_id}/talk       -- streaming dialogue (typewriter-style)
+  POST /npc/{npc_id}/reflect    -- run reflection (called periodically by a worker/ops)
+  GET  /npc/{npc_id}/memories   -- debug: inspect the memory stream
 
-Chạy: uvicorn src.server:app --port 8080
+Run: uvicorn src.server:app --port 8080
 """
 
 import json
@@ -27,7 +27,7 @@ from src.llm import LLM, get_llm
 from src.memory_store import MemoryRecord, MemoryStore
 from src.relationship import RelationshipTracker
 
-DEFAULT_PERSONA = "Một dân làng thân thiện, nói năng mộc mạc, quý người tử tế."
+DEFAULT_PERSONA = "A friendly villager, plain-spoken, fond of decent people."
 
 
 def _load_personas() -> dict[str, str]:
@@ -39,23 +39,24 @@ def _load_personas() -> dict[str, str]:
 
 class EventIn(BaseModel):
     kind: str = ""                      # "player_gift", "player_attack_npc"... (scoring.FIXED_IMPORTANCE)
-    text: str = Field(min_length=1)     # "Akira tặng ta một bó hoa"
+    text: str = Field(min_length=1)     # "Akira gave me a bouquet of flowers"
     participants: list[str] = []        # ["player:akira"]
     type: str = "observation"
 
 
 class PrefetchIn(BaseModel):
-    context: str = Field(min_length=1)  # địa điểm/tình huống lúc người chơi lại gần
+    context: str = Field(min_length=1)  # location/situation as the player approaches
 
 
 class ReflectIn(BaseModel):
-    force: bool = False                 # true: bỏ qua ngưỡng importance
+    force: bool = False                 # true: skip the importance threshold
 
 
 def create_app(store: MemoryStore | None = None, llm: LLM | None = None,
                relationships: RelationshipTracker | None = None,
                personas: dict[str, str] | None = None) -> FastAPI:
-    """Factory — test inject store/llm fake; chạy thật thì để None, lifespan tự dựng."""
+    """Factory — tests inject a fake store/llm; in production leave None and
+    the lifespan builds the real ones."""
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -84,8 +85,8 @@ def create_app(store: MemoryStore | None = None, llm: LLM | None = None,
 
     @app.post("/npc/{npc_id}/event")
     def post_event(npc_id: str, event: EventIn):
-        """Ghi 1 observation. Lọc tại nguồn là việc của game: chỉ gửi khi có
-        tương tác/sự kiện gameplay, không gửi mọi frame."""
+        """Write one observation. Filtering at the source is the game's job:
+        only send on interactions/gameplay events, never every frame."""
         importance = scoring.score_importance_batch(
             [{"kind": event.kind, "text": event.text}],
             persona_of(npc_id), llm=app.state.llm)[0]
@@ -103,8 +104,8 @@ def create_app(store: MemoryStore | None = None, llm: LLM | None = None,
 
     @app.post("/npc/{npc_id}/prefetch")
     def prefetch(npc_id: str, body: PrefetchIn):
-        """Người chơi vào trigger radius: retrieve trước để lúc bấm nói không
-        phải chờ vector search (README 5.1)."""
+        """Player entered the trigger radius: retrieve ahead of time so the
+        talk button doesn't wait on vector search (README 5.1)."""
         cands, relevance = app.state.store.candidates(npc_id, body.context)
         memories = scoring.retrieve(cands, relevance, top_k=12, store=app.state.store)
         app.state.prefetch[npc_id] = {"memories": memories, "context": body.context}
@@ -114,9 +115,9 @@ def create_app(store: MemoryStore | None = None, llm: LLM | None = None,
 
     @app.websocket("/npc/{npc_id}/talk")
     async def talk(ws: WebSocket, npc_id: str):
-        """Mỗi message client gửi: {"utterance": str, "player_id": str?,
-        "situation": str?}. Server stream về từng event của dialogue.respond,
-        kết thúc lượt bằng {"type": "done"}."""
+        """Each client message: {"utterance": str, "player_id": str?,
+        "situation": str?}. The server streams back every dialogue.respond
+        event and ends the turn with {"type": "done"}."""
         await ws.accept()
         store: MemoryStore = app.state.store
         try:
@@ -144,11 +145,11 @@ def create_app(store: MemoryStore | None = None, llm: LLM | None = None,
                     await ws.send_json(event)
                 await ws.send_json({"type": "done"})
 
-                # lượt thoại cũng là ký ức (type=dialogue) + log để xử lý khai thác
+                # the exchange is itself a memory (type=dialogue) + logged for exploit review
                 reply = "".join(reply_parts)
                 store.add(MemoryRecord.new(
                     npc_id=npc_id, type="dialogue",
-                    text=f"{player_id} nói: \"{utterance}\" — ta đáp: \"{reply}\"",
+                    text=f"{player_id} said: \"{utterance}\" — I replied: \"{reply}\"",
                     importance=scoring.DEFAULT_IMPORTANCE,
                     participants=[f"player:{player_id}"]))
                 _log_dialogue(npc_id, player_id, utterance, reply)
@@ -160,7 +161,7 @@ def create_app(store: MemoryStore | None = None, llm: LLM | None = None,
     @app.post("/npc/{npc_id}/reflect")
     def run_reflection(npc_id: str, body: ReflectIn | None = None):
         if app.state.llm is None:
-            raise HTTPException(503, "LLM_BACKEND=none — không chạy reflection được")
+            raise HTTPException(503, "LLM_BACKEND=none — reflection unavailable")
         force = bool(body and body.force)
         if force:
             created = reflection.reflect(npc_id, app.state.store, app.state.llm)
@@ -183,7 +184,7 @@ def create_app(store: MemoryStore | None = None, llm: LLM | None = None,
 
 
 def _log_dialogue(npc_id: str, player_id: str, utterance: str, reply: str) -> None:
-    """Ghi log toàn bộ hội thoại — xử lý khai thác/injection về sau (README 5.3)."""
+    """Log every conversation — for reviewing exploits/injection later (README 5.3)."""
     config.DIALOGUE_LOG.parent.mkdir(parents=True, exist_ok=True)
     with config.DIALOGUE_LOG.open("a", encoding="utf-8") as f:
         f.write(json.dumps({

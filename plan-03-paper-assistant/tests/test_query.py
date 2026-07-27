@@ -1,4 +1,4 @@
-"""Test offline cho P3-P4: BM25, RRF, hybrid, rerank, parent-doc, expansion, retrieve."""
+"""Offline tests for P3-P4: BM25, RRF, hybrid, rerank, parent-doc, expansion, retrieve."""
 
 from pathlib import Path
 
@@ -18,7 +18,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "sample_tei.xml"
 
 @pytest.fixture
 def env(tmp_path):
-    """Index fixture paper vào Qdrant in-memory + SQLite tạm."""
+    """Index the fixture paper into in-memory Qdrant + temp SQLite."""
     paper = parse_tei(etree.fromstring(FIXTURE.read_bytes()), paper_id="2308.00001")
     chunks = chunk_paper(paper)
     embedder = HashEmbedder()
@@ -46,7 +46,7 @@ def test_rrf_fuse_rewards_agreement():
     a = [{"chunk_id": "x", "v": 1}, {"chunk_id": "y", "v": 1}]
     b = [{"chunk_id": "y", "v": 1}, {"chunk_id": "z", "v": 1}]
     fused = rrf_fuse([a, b])
-    # y xuất hiện trong cả 2 bảng xếp hạng -> phải đứng đầu
+    # y appears in both rankings -> must come first
     assert fused[0]["chunk_id"] == "y"
     assert {f["chunk_id"] for f in fused} == {"x", "y", "z"}
 
@@ -79,20 +79,22 @@ def test_to_parent_sections_dedupes(env):
     method_chunks = [c for c in env["chunks"] if c.section_type == "method"]
     as_dicts = [{"parent_section_id": c.parent_section_id} for c in method_chunks]
     sections = to_parent_sections(as_dicts, db_path=env["db_path"])
-    assert len(sections) == 1  # nhiều chunk cùng 1 section -> 1 section duy nhất
+    assert len(sections) == 1  # many chunks of one section -> exactly one section
     assert sections[0]["section"] == "3. Method"
 
 
 # ----------------------------------------------------------------- expansion
 
 def test_expand_query_with_injected_llm():
+    # The Vietnamese question is deliberate data — it exercises the multilingual
+    # expansion feature (first variant should be an English translation).
     fake_llm = lambda prompt: "memory retrieval for agents\nrecency importance relevance scoring"
     queries = expand_query("NPC nhớ bằng cách nào?", n=2, llm=fake_llm)
-    assert queries[0] == "NPC nhớ bằng cách nào?"      # câu gốc luôn đứng đầu
+    assert queries[0] == "NPC nhớ bằng cách nào?"      # original question always first
     assert len(queries) == 3
 
 
-# ------------------------------------------------------- retrieve (tổng hợp)
+# ------------------------------------------------------- retrieve (combined)
 
 def test_retrieve_full_pipeline_offline(env):
     fake_llm = lambda prompt: "importance score language model rating"
@@ -105,7 +107,7 @@ def test_retrieve_full_pipeline_offline(env):
 
 
 def test_retrieve_v1_mode(env):
-    """Chế độ đo baseline của eval: không expand, không hybrid, không rerank."""
+    """Eval's baseline mode: no expansion, no hybrid, no rerank."""
     chunks = retrieve(
         "memory retrieval for embodied agents",
         expand=False, hybrid=False, parent=False, reranker=NoopReranker(),

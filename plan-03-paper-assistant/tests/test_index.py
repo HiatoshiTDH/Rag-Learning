@@ -1,4 +1,4 @@
-"""Test offline cho task 1.4 + 1.5 — Qdrant in-memory + HashEmbedder, không cần docker/API key."""
+"""Offline tests for tasks 1.4 + 1.5 — in-memory Qdrant + HashEmbedder, no docker/API keys."""
 
 from pathlib import Path
 
@@ -30,7 +30,7 @@ def test_upsert_counts_match(indexed):
 
 
 def test_upsert_idempotent(indexed):
-    """Task 1.6 yêu cầu chạy lại không duplicate — uuid5(chunk_id) bảo đảm điều đó."""
+    """Task 1.6 requires re-runs not to duplicate — uuid5(chunk_id) guarantees it."""
     upsert_chunks(indexed["chunks"], embedder=indexed["embedder"], client=indexed["client"])
     count = indexed["client"].count("papers").count
     assert count == len(indexed["chunks"])
@@ -50,12 +50,12 @@ def test_search_with_filter(indexed):
 
 
 def test_parent_section_lookup(indexed):
-    """Task 1.5 — full section cho parent-document retrieval ở P3."""
+    """Task 1.5 — full sections for P3's parent-document retrieval."""
     method_chunk = next(c for c in indexed["chunks"] if c.section_type == "method")
     section = get_section(method_chunk.parent_section_id, db_path=indexed["db_path"])
     assert section is not None
     assert section["section"] == "3. Method"
-    # Section phải chứa đủ nội dung của mọi chunk con
+    # The section must contain every child chunk's content in full
     for c in indexed["chunks"]:
         if c.parent_section_id == method_chunk.parent_section_id:
             assert c.text in section["text"]

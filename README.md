@@ -1,154 +1,154 @@
-# Rag-Learning — Danh sách các Plan sử dụng RAG nhiều
+# Rag-Learning — Plans that use RAG heavily
 
-Tài liệu này liệt kê các dự án/plan mà **hệ thống RAG (Retrieval-Augmented Generation) là trái tim của sản phẩm** — không phải tính năng phụ. Mỗi plan đều ghi rõ: vì sao RAG được dùng nặng, kỹ thuật RAG nào sẽ học được, stack gợi ý và độ khó. Sắp xếp từ dễ đến khó để có thể dùng luôn làm lộ trình học.
+This document lists projects/plans where a **RAG (Retrieval-Augmented Generation) system is the heart of the product** — not a side feature. Each plan spells out: why RAG is used heavily, which RAG techniques you will learn, a suggested stack, and the difficulty. Sorted from easy to hard so it can double as a learning roadmap.
 
-## Bảng tổng quan
+## Overview table
 
-| # | Plan | Mức độ dùng RAG | Độ khó | Kỹ thuật chính |
-|---|------|-----------------|--------|----------------|
-| 1 | Chatbot hỏi đáp tài liệu cá nhân (PDF/notes) | ★★★☆☆ | Dễ | Chunking, embedding, vector search |
-| 2 | Trợ lý wiki/tài liệu nội bộ công ty | ★★★★☆ | Dễ–Vừa | Hybrid search, metadata filtering |
-| 3 | Trợ lý đọc & tra cứu paper nghiên cứu | ★★★★☆ | Vừa | Citation, chunking văn bản học thuật |
-| 4 | Code assistant trên codebase riêng | ★★★★☆ | Vừa | Code chunking (AST), re-ranking |
-| 5 | Customer support bot với knowledge base | ★★★★☆ | Vừa | Query rewriting, feedback loop |
-| 6 | Trợ lý pháp lý / quy định / hợp đồng | ★★★★★ | Vừa–Khó | Grounding, citation bắt buộc, chống hallucination |
-| 7 | Second brain cá nhân (Obsidian/Notion) | ★★★★☆ | Vừa | Incremental indexing, temporal retrieval |
-| 8 | NPC game có trí nhớ dài hạn | ★★★★★ | Khó | Memory RAG, retrieval theo thời gian + độ quan trọng |
-| 9 | GraphRAG / Multi-hop QA trên kho tri thức | ★★★★★ | Khó | Knowledge graph, multi-hop reasoning |
-| 10 | Agentic RAG — agent tự quyết định khi nào retrieve | ★★★★★ | Khó | Tool use, self-RAG, query planning |
-| 11 | RAG đa phương thức (ảnh + text + bảng biểu) | ★★★★★ | Khó | Multimodal embedding, table/figure retrieval |
-| 12 | RAG Evaluation Harness (đánh giá chất lượng RAG) | ★★★★★ | Khó | RAGAS, LLM-as-judge, benchmark |
-
----
-
-## Nhóm 1 — Cơ bản (nắm pipeline RAG chuẩn)
-
-### 1. Chatbot hỏi đáp tài liệu cá nhân (PDF/notes)
-
-- **Mô tả:** Upload PDF/markdown, đặt câu hỏi và nhận câu trả lời kèm trích dẫn đúng đoạn trong tài liệu.
-- **Vì sao RAG nặng:** Toàn bộ giá trị nằm ở retrieval — LLM không biết gì về tài liệu của bạn, mọi câu trả lời đều phải đi qua pipeline ingest → chunk → embed → search.
-- **Kỹ thuật học được:** Chunking (fixed-size vs semantic), embedding, cosine similarity, prompt template "trả lời dựa trên context".
-- **Stack gợi ý:** Python + Chroma (vector DB nhúng, không cần server) + embedding của Voyage AI hoặc `bge-m3` (tốt cho đa ngôn ngữ Việt/Nhật/Anh) + Claude API.
-- **Thời gian ước lượng:** 1–2 tuần.
-
-### 2. Trợ lý wiki/tài liệu nội bộ công ty
-
-- **Mô tả:** Index toàn bộ Confluence/Notion/Google Docs của team, trả lời câu hỏi kiểu "quy trình xin nghỉ phép thế nào", "config service X ở đâu".
-- **Vì sao RAG nặng:** Dữ liệu lớn, cập nhật liên tục, nhiều nguồn khác nhau — phải xử lý sync định kỳ, phân quyền truy cập theo user, và search phải đủ tốt để không trả về tài liệu lỗi thời.
-- **Kỹ thuật học được:** **Hybrid search** (BM25 + vector), metadata filtering (theo team, ngày cập nhật, độ tin cậy), pipeline ingest tự động.
-- **Stack gợi ý:** Qdrant hoặc pgvector + BM25 (qua Elasticsearch hoặc `rank_bm25`) + cron job sync.
-- **Thời gian ước lượng:** 2–4 tuần.
+| # | Plan | RAG intensity | Difficulty | Key techniques |
+|---|------|---------------|------------|----------------|
+| 1 | Personal document Q&A chatbot (PDF/notes) | ★★★☆☆ | Easy | Chunking, embedding, vector search |
+| 2 | Internal company wiki/docs assistant | ★★★★☆ | Easy–Medium | Hybrid search, metadata filtering |
+| 3 | Research paper reading & lookup assistant | ★★★★☆ | Medium | Citations, academic-text chunking |
+| 4 | Code assistant on your own codebase | ★★★★☆ | Medium | Code chunking (AST), re-ranking |
+| 5 | Customer support bot with a knowledge base | ★★★★☆ | Medium | Query rewriting, feedback loop |
+| 6 | Legal / regulation / contract assistant | ★★★★★ | Medium–Hard | Grounding, mandatory citations, anti-hallucination |
+| 7 | Personal second brain (Obsidian/Notion) | ★★★★☆ | Medium | Incremental indexing, temporal retrieval |
+| 8 | Game NPCs with long-term memory | ★★★★★ | Hard | Memory RAG, recency + importance retrieval |
+| 9 | GraphRAG / multi-hop QA over a knowledge base | ★★★★★ | Hard | Knowledge graph, multi-hop reasoning |
+| 10 | Agentic RAG — the agent decides when to retrieve | ★★★★★ | Hard | Tool use, self-RAG, query planning |
+| 11 | Multimodal RAG (images + text + tables) | ★★★★★ | Hard | Multimodal embedding, table/figure retrieval |
+| 12 | RAG Evaluation Harness (measuring RAG quality) | ★★★★★ | Hard | RAGAS, LLM-as-judge, benchmarks |
 
 ---
 
-## Nhóm 2 — Trung cấp (xử lý dữ liệu khó, retrieval thông minh hơn)
+## Group 1 — Basics (learn the standard RAG pipeline)
 
-### 3. Trợ lý đọc & tra cứu paper nghiên cứu
+### 1. Personal document Q&A chatbot (PDF/notes)
 
-> 📁 **Folder dự án (plan chi tiết + skeleton code):** [plan-03-paper-assistant/](plan-03-paper-assistant/)
+- **Description:** Upload PDFs/markdown, ask questions, and get answers with citations pointing to the exact passage in the document.
+- **Why RAG is heavy:** All the value lives in retrieval — the LLM knows nothing about your documents; every answer must flow through the ingest → chunk → embed → search pipeline.
+- **Techniques learned:** Chunking (fixed-size vs semantic), embedding, cosine similarity, "answer from the context" prompt templates.
+- **Suggested stack:** Python + Chroma (embedded vector DB, no server needed) + Voyage AI embeddings or `bge-m3` (good for Vietnamese/Japanese/English multilingual) + Claude API.
+- **Estimated time:** 1–2 weeks.
 
-- **Mô tả:** Index paper từ arXiv/Semantic Scholar theo hướng nghiên cứu (VD: robotics, human augmentation, SRL), hỏi đáp xuyên nhiều paper, so sánh phương pháp giữa các paper, tìm related work.
-- **Vì sao RAG nặng:** Paper có cấu trúc đặc thù (abstract, method, equation, reference) — chunking ngây thơ sẽ phá hỏng ngữ cảnh. Câu trả lời phải trích dẫn đúng paper, đúng section, nếu không thì vô dụng cho việc nghiên cứu.
-- **Kỹ thuật học được:** Structure-aware chunking, citation tracking, parent-document retrieval (retrieve chunk nhỏ nhưng đưa cả section vào context), query expansion theo thuật ngữ chuyên ngành.
-- **Stack gợi ý:** GROBID (parse PDF học thuật) + Qdrant + citations API của Claude (bật `citations: {enabled: true}` trên document block).
-- **Thời gian ước lượng:** 3–4 tuần.
+### 2. Internal company wiki/docs assistant
 
-### 4. Code assistant trên codebase riêng
-
-- **Mô tả:** Hỏi đáp về codebase của chính mình: "hàm xử lý input buffer nằm ở đâu", "flow save game chạy thế nào", "viết test cho module X theo style hiện tại".
-- **Vì sao RAG nặng:** Code không thể chunk theo ký tự — phải chunk theo cấu trúc (function, class) bằng AST. Retrieval phải kết hợp semantic search + exact symbol match, và phải trả về đủ ngữ cảnh (imports, type definitions liên quan).
-- **Kỹ thuật học được:** AST-based chunking (tree-sitter), hybrid retrieval cho code, re-ranking, repo-map/context stuffing.
-- **Stack gợi ý:** tree-sitter + embedding chuyên code (Voyage `voyage-code-3`) + Qdrant.
-- **Thời gian ước lượng:** 3–5 tuần.
-
-### 5. Customer support bot với knowledge base
-
-- **Mô tả:** Bot trả lời khách hàng dựa trên FAQ + docs + lịch sử ticket; escalate cho người thật khi không đủ tự tin.
-- **Vì sao RAG nặng:** Câu hỏi của user thật rất "bẩn" (viết tắt, sai chính tả, mô tả mơ hồ) — phải có query rewriting trước khi search. Sai một câu trả lời là mất khách, nên cần confidence threshold + fallback.
-- **Kỹ thuật học được:** Query rewriting/decomposition, confidence scoring, feedback loop (câu trả lời bị đánh giá kém → cải thiện index), A/B testing retrieval.
-- **Thời gian ước lượng:** 3–5 tuần.
-
-### 6. Trợ lý pháp lý / quy định / hợp đồng
-
-- **Mô tả:** Hỏi đáp trên bộ luật, quy định nội bộ, hoặc hợp đồng — mọi câu trả lời **bắt buộc** kèm điều khoản gốc.
-- **Vì sao RAG nặng:** Đây là domain mà hallucination = thảm họa. Toàn bộ hệ thống phải xây quanh nguyên tắc "chỉ nói những gì retrieve được": citation bắt buộc, refuse khi không tìm thấy căn cứ, xử lý các điều khoản tham chiếu chéo lẫn nhau.
-- **Kỹ thuật học được:** Grounded generation, citation enforcement, cross-reference resolution, "I don't know" behavior, đánh giá faithfulness.
-- **Thời gian ước lượng:** 4–6 tuần.
-
-### 7. Second brain cá nhân (Obsidian/Notion)
-
-- **Mô tả:** Index toàn bộ note cá nhân, hỏi kiểu "tháng trước mình đã kết luận gì về đề tài X", "tổng hợp mọi ghi chú liên quan đến lab Y".
-- **Vì sao RAG nặng:** Note thay đổi hằng ngày → cần **incremental indexing** (chỉ re-embed note đã sửa). Câu hỏi thường có yếu tố thời gian → retrieval phải kết hợp semantic + temporal ("gần đây", "hồi tháng 3").
-- **Kỹ thuật học được:** Incremental/delta indexing, temporal-aware retrieval, backlink-aware context (đưa cả note được link tới vào context).
-- **Stack gợi ý:** Watchdog theo dõi file thay đổi + SQLite-vec hoặc Chroma (chạy local, dữ liệu cá nhân không rời máy).
-- **Thời gian ước lượng:** 2–4 tuần.
+- **Description:** Index the team's entire Confluence/Notion/Google Docs and answer questions like "what's the process for requesting leave" or "where is service X configured".
+- **Why RAG is heavy:** Large, constantly changing data from many sources — you must handle periodic syncs, per-user access control, and search good enough to never surface outdated documents.
+- **Techniques learned:** **Hybrid search** (BM25 + vector), metadata filtering (by team, last-updated date, trust level), automated ingest pipeline.
+- **Suggested stack:** Qdrant or pgvector + BM25 (via Elasticsearch or `rank_bm25`) + a cron sync job.
+- **Estimated time:** 2–4 weeks.
 
 ---
 
-## Nhóm 3 — Nâng cao (RAG là cả một hệ thống, không chỉ một pipeline)
+## Group 2 — Intermediate (harder data, smarter retrieval)
 
-### 8. NPC game có trí nhớ dài hạn (Memory RAG)
+### 3. Research paper reading & lookup assistant
 
-> 📁 **Folder dự án (plan chi tiết + skeleton code):** [plan-08-npc-memory/](plan-08-npc-memory/)
+> 📁 **Project folder (detailed plan + skeleton code):** [plan-03-paper-assistant/](plan-03-paper-assistant/)
 
-- **Mô tả:** NPC nhớ mọi tương tác với người chơi qua nhiều session — "lần trước cậu hứa mang thuốc cho tôi", "cậu từng phản bội làng này". Rất hợp nếu đang làm game Unity/Roblox.
-- **Vì sao RAG nặng:** Trí nhớ NPC chính là một hệ RAG hoàn chỉnh: mỗi sự kiện được lưu thành memory record, khi hội thoại thì retrieve theo **3 trục cùng lúc: liên quan (semantic) + gần đây (recency) + quan trọng (importance)** — đúng kiến trúc của paper Generative Agents (Stanford). Còn thêm bài toán reflection: định kỳ nén các memory vụn thành nhận định cấp cao.
-- **Kỹ thuật học được:** Memory stream, scoring function đa tiêu chí, reflection/summarization định kỳ, retrieval trong ràng buộc latency của game.
-- **Stack gợi ý:** Vector DB nhẹ chạy cạnh game server + Claude Haiku 4.5 cho hội thoại latency thấp, Claude Sonnet 5 cho reflection.
-- **Thời gian ước lượng:** 4–8 tuần.
+- **Description:** Index papers from arXiv/Semantic Scholar in your research direction (e.g., robotics, human augmentation, SRL), ask questions across multiple papers, compare methods between papers, find related work.
+- **Why RAG is heavy:** Papers have a peculiar structure (abstract, method, equations, references) — naive chunking destroys the context. Answers must cite the right paper and the right section, otherwise they are useless for research.
+- **Techniques learned:** Structure-aware chunking, citation tracking, parent-document retrieval (retrieve small chunks but feed the whole section into context), query expansion with domain terminology.
+- **Suggested stack:** GROBID (academic PDF parsing) + Qdrant + Claude's citations API (enable `citations: {enabled: true}` on document blocks).
+- **Estimated time:** 3–4 weeks.
 
-### 9. GraphRAG / Multi-hop QA trên kho tri thức
+### 4. Code assistant on your own codebase
 
-- **Mô tả:** Trả lời câu hỏi cần **nối nhiều mảnh thông tin**: "Giáo sư nào từng làm ở lab X và hiện nghiên cứu topic Y?" — không chunk đơn lẻ nào chứa đủ câu trả lời.
-- **Vì sao RAG nặng:** Vector search thuần thất bại với câu hỏi multi-hop. Phải xây knowledge graph (entity + relation trích từ tài liệu), rồi retrieval đi theo cạnh của graph, kết hợp community summarization cho câu hỏi tổng quan ("chủ đề chính của toàn bộ kho tài liệu là gì").
-- **Kỹ thuật học được:** Entity/relation extraction bằng LLM, graph traversal retrieval, community detection + hierarchical summarization (kiến trúc GraphRAG của Microsoft), query routing (câu nào đi graph, câu nào đi vector).
-- **Stack gợi ý:** Neo4j hoặc NetworkX + vector DB song song.
-- **Thời gian ước lượng:** 6–10 tuần.
+- **Description:** Q&A about your own codebase: "where is the input buffer handled", "how does the save-game flow work", "write tests for module X in the current style".
+- **Why RAG is heavy:** Code cannot be chunked by characters — it must be chunked by structure (function, class) using an AST. Retrieval must combine semantic search + exact symbol match, and must return enough context (imports, related type definitions).
+- **Techniques learned:** AST-based chunking (tree-sitter), hybrid retrieval for code, re-ranking, repo-map/context stuffing.
+- **Suggested stack:** tree-sitter + code-specialized embeddings (Voyage `voyage-code-3`) + Qdrant.
+- **Estimated time:** 3–5 weeks.
 
-### 10. Agentic RAG — agent tự quyết định khi nào retrieve
+### 5. Customer support bot with a knowledge base
 
-- **Mô tả:** Thay vì "mọi câu hỏi đều search", agent tự đánh giá: câu này cần retrieve không? Retrieve từ nguồn nào (docs nội bộ / web / database)? Kết quả đủ chưa hay cần search lại với query khác?
-- **Vì sao RAG nặng:** Retrieval trở thành **tool trong vòng lặp agent** — agent có thể gọi search nhiều lần, tự viết lại query, tự chấm điểm kết quả (self-RAG), và tổng hợp từ nhiều nguồn. Đây là kiến trúc của các hệ RAG production hiện đại.
-- **Kỹ thuật học được:** Tool use với Claude API (tool runner), query planning & decomposition, self-reflection trên kết quả retrieval, multi-source routing, corrective RAG (CRAG).
-- **Stack gợi ý:** Claude API tool use (model `claude-opus-5`, adaptive thinking) + 2–3 retrieval tool khác nhau (vector search, BM25, web search).
-- **Thời gian ước lượng:** 6–10 tuần.
+- **Description:** A bot that answers customers from FAQ + docs + ticket history; escalates to a human when not confident enough.
+- **Why RAG is heavy:** Real user questions are "dirty" (abbreviations, typos, vague descriptions) — query rewriting is required before search. One wrong answer loses a customer, so you need confidence thresholds + fallbacks.
+- **Techniques learned:** Query rewriting/decomposition, confidence scoring, feedback loop (poorly rated answers → improve the index), A/B testing retrieval.
+- **Estimated time:** 3–5 weeks.
 
-### 11. RAG đa phương thức (ảnh + text + bảng biểu)
+### 6. Legal / regulation / contract assistant
 
-- **Mô tả:** Hỏi đáp trên tài liệu kỹ thuật có hình vẽ, sơ đồ, bảng số liệu — "sơ đồ mạch ở chương 3 nối chân nào với chân nào", "bảng so sánh hiệu năng nói gì".
-- **Vì sao RAG nặng:** Phải index và retrieve được cả nội dung không phải text: ảnh cần multimodal embedding hoặc caption hóa bằng vision model trước khi index, bảng cần giữ nguyên cấu trúc, và khi trả lời phải đưa đúng ảnh/bảng vào context của model vision.
-- **Kỹ thuật học được:** Multimodal embedding (CLIP-family / voyage-multimodal), image captioning để index, table extraction & serialization, layout-aware parsing.
-- **Thời gian ước lượng:** 6–10 tuần.
+- **Description:** Q&A over statutes, internal regulations, or contracts — every answer **must** include the original clause.
+- **Why RAG is heavy:** This is a domain where hallucination = disaster. The whole system is built around "only say what was retrieved": mandatory citations, refusing when no grounding is found, and handling clauses that cross-reference each other.
+- **Techniques learned:** Grounded generation, citation enforcement, cross-reference resolution, "I don't know" behavior, faithfulness evaluation.
+- **Estimated time:** 4–6 weeks.
+
+### 7. Personal second brain (Obsidian/Notion)
+
+- **Description:** Index all your personal notes and ask things like "what did I conclude about topic X last month", "summarize every note related to lab Y".
+- **Why RAG is heavy:** Notes change daily → you need **incremental indexing** (only re-embed edited notes). Questions often have a temporal component → retrieval must combine semantic + temporal ("recently", "back in March").
+- **Techniques learned:** Incremental/delta indexing, temporal-aware retrieval, backlink-aware context (pull linked notes into context too).
+- **Suggested stack:** A file watcher (watchdog) + SQLite-vec or Chroma (runs locally; personal data never leaves your machine).
+- **Estimated time:** 2–4 weeks.
+
+---
+
+## Group 3 — Advanced (RAG as a whole system, not just one pipeline)
+
+### 8. Game NPCs with long-term memory (Memory RAG)
+
+> 📁 **Project folder (detailed plan + skeleton code):** [plan-08-npc-memory/](plan-08-npc-memory/)
+
+- **Description:** NPCs remember every interaction with the player across sessions — "last time you promised to bring me medicine", "you once betrayed this village". A great fit if you are building Unity/Roblox games.
+- **Why RAG is heavy:** NPC memory *is* a complete RAG system: every event is stored as a memory record, and during dialogue you retrieve along **three axes at once: relevance (semantic) + recency + importance** — exactly the architecture of the Generative Agents paper (Stanford). Plus the reflection problem: periodically compressing fragmentary memories into high-level insights.
+- **Techniques learned:** Memory stream, multi-criteria scoring function, periodic reflection/summarization, retrieval under game latency constraints.
+- **Suggested stack:** A lightweight vector DB next to the game server + Claude Haiku 4.5 for low-latency dialogue, Claude Sonnet 5 for reflection.
+- **Estimated time:** 4–8 weeks.
+
+### 9. GraphRAG / multi-hop QA over a knowledge base
+
+- **Description:** Answer questions that require **connecting multiple pieces of information**: "Which professor worked at lab X and now researches topic Y?" — no single chunk contains the full answer.
+- **Why RAG is heavy:** Pure vector search fails on multi-hop questions. You must build a knowledge graph (entities + relations extracted from documents), let retrieval walk the graph's edges, and combine community summarization for overview questions ("what are the main themes of this whole corpus").
+- **Techniques learned:** LLM-based entity/relation extraction, graph traversal retrieval, community detection + hierarchical summarization (Microsoft's GraphRAG architecture), query routing (which questions go to the graph vs the vector index).
+- **Suggested stack:** Neo4j or NetworkX + a vector DB side by side.
+- **Estimated time:** 6–10 weeks.
+
+### 10. Agentic RAG — the agent decides when to retrieve
+
+- **Description:** Instead of "search on every question", the agent judges for itself: does this question need retrieval? From which source (internal docs / web / database)? Are the results sufficient, or should it search again with a different query?
+- **Why RAG is heavy:** Retrieval becomes **a tool inside the agent loop** — the agent can call search multiple times, rewrite its own queries, grade its own results (self-RAG), and synthesize across sources. This is the architecture of modern production RAG systems.
+- **Techniques learned:** Tool use with the Claude API (tool runner), query planning & decomposition, self-reflection on retrieval results, multi-source routing, corrective RAG (CRAG).
+- **Suggested stack:** Claude API tool use (model `claude-opus-5`, adaptive thinking) + 2–3 different retrieval tools (vector search, BM25, web search).
+- **Estimated time:** 6–10 weeks.
+
+### 11. Multimodal RAG (images + text + tables)
+
+- **Description:** Q&A over technical documents containing figures, diagrams, and data tables — "which pins does the circuit diagram in chapter 3 connect", "what does the performance comparison table say".
+- **Why RAG is heavy:** You must index and retrieve non-text content: images need multimodal embeddings or vision-model captioning before indexing, tables must keep their structure, and answers must feed the right image/table into the vision model's context.
+- **Techniques learned:** Multimodal embedding (CLIP-family / voyage-multimodal), image captioning for indexing, table extraction & serialization, layout-aware parsing.
+- **Estimated time:** 6–10 weeks.
 
 ### 12. RAG Evaluation Harness
 
-- **Mô tả:** Xây hệ thống đánh giá tự động cho chính các RAG pipeline ở trên: đo retrieval precision/recall, faithfulness, answer relevancy — chạy như CI mỗi khi đổi chunking strategy hay embedding model.
-- **Vì sao RAG nặng:** Không đo được thì không cải thiện được. Plan này buộc bạn hiểu sâu **mọi khâu** của RAG vì phải đo từng khâu một: chunk tốt chưa, retrieve trúng chưa, câu trả lời có bám context không.
-- **Kỹ thuật học được:** RAGAS metrics, LLM-as-judge, xây golden dataset, regression testing cho RAG, phân tích lỗi theo từng tầng (chunking → retrieval → generation).
-- **Stack gợi ý:** RAGAS hoặc tự viết judge bằng Claude + structured outputs (`output_config.format`) để chấm điểm có schema.
-- **Thời gian ước lượng:** 3–5 tuần (dùng lại được cho mọi project khác).
+- **Description:** Build an automated evaluation system for the RAG pipelines above: measure retrieval precision/recall, faithfulness, answer relevancy — run it like CI every time you change the chunking strategy or embedding model.
+- **Why RAG is heavy:** What you can't measure you can't improve. This plan forces you to understand **every stage** of RAG because you must measure each one: is the chunking good, did retrieval hit, does the answer stick to the context.
+- **Techniques learned:** RAGAS metrics, LLM-as-judge, building golden datasets, regression testing for RAG, layered error analysis (chunking → retrieval → generation).
+- **Suggested stack:** RAGAS, or write your own judge with Claude + structured outputs (`output_config.format`) for schema-based grading.
+- **Estimated time:** 3–5 weeks (reusable across every other project).
 
 ---
 
-## Lộ trình gợi ý
+## Suggested roadmap
 
 ```
-Plan 1 (chatbot PDF)          ← nắm pipeline chuẩn
+Plan 1 (PDF chatbot)          ← learn the standard pipeline
    ↓
-Plan 2 hoặc 7                 ← hybrid search + incremental indexing
+Plan 2 or 7                   ← hybrid search + incremental indexing
    ↓
-Plan 3 hoặc 4                 ← chunking khó (paper / code) + re-ranking
+Plan 3 or 4                   ← hard chunking (papers / code) + re-ranking
    ↓
-Plan 12 (evaluation)          ← học đo lường TRƯỚC khi làm hệ phức tạp
+Plan 12 (evaluation)          ← learn to measure BEFORE building complex systems
    ↓
-Plan 8 / 9 / 10               ← chọn theo hứng thú: game / graph / agent
+Plan 8 / 9 / 10               ← pick by interest: games / graphs / agents
 ```
 
-Gợi ý riêng: nếu mục tiêu là game dev → ưu tiên **Plan 8 (NPC memory)**; nếu mục tiêu là nghiên cứu/cao học → ưu tiên **Plan 3 (paper assistant)** rồi **Plan 9 (GraphRAG)**.
+Personal note: if your goal is game dev → prioritize **Plan 8 (NPC memory)**; if your goal is research/grad school → prioritize **Plan 3 (paper assistant)** then **Plan 9 (GraphRAG)**.
 
-## Ghi chú về stack chung
+## Notes on the shared stack
 
-- **Embedding:** Anthropic không có embeddings API — dùng Voyage AI (đối tác của Anthropic, có `voyage-3` đa ngôn ngữ và `voyage-code-3` cho code) hoặc open-source `bge-m3` (mạnh cho tiếng Việt/Nhật, chạy local được).
-- **Vector DB:** bắt đầu với Chroma (nhúng, zero-config) → chuyển Qdrant hoặc pgvector khi cần production/filtering phức tạp.
-- **LLM:** mặc định `claude-opus-5` cho chất lượng; `claude-sonnet-5` cho khối lượng lớn; `claude-haiku-4-5` cho tác vụ latency thấp (VD: hội thoại NPC in-game). Bật prompt caching cho phần context/document lặp lại giữa các request để giảm ~90% chi phí phần cache.
-- **Nguyên tắc xuyên suốt:** làm Plan 12 (evaluation) càng sớm càng tốt — mọi quyết định chunking/embedding/re-ranking đều nên có số liệu chứng minh thay vì cảm tính.
+- **Embeddings:** Anthropic has no embeddings API — use Voyage AI (Anthropic's partner; `voyage-3` is multilingual and `voyage-code-3` is for code) or open-source `bge-m3` (strong for Vietnamese/Japanese, runs locally).
+- **Vector DB:** start with Chroma (embedded, zero-config) → move to Qdrant or pgvector when you need production features/complex filtering.
+- **LLM:** default to `claude-opus-5` for quality; `claude-sonnet-5` for high volume; `claude-haiku-4-5` for low-latency tasks (e.g., in-game NPC dialogue). Enable prompt caching for context/documents repeated across requests to cut the cached portion's cost by ~90%.
+- **Guiding principle:** do Plan 12 (evaluation) as early as possible — every chunking/embedding/re-ranking decision should be backed by numbers, not gut feeling.

@@ -1,9 +1,11 @@
-"""P2 (2.2) + P4 (4.2, 4.3) — Generation với citations API của Claude.
+"""P2 (2.2) + P4 (4.2, 4.3) — Generation with Claude's citations API.
 
-Mỗi section retrieve được đưa vào như một `document` block với citations bật
--> response kèm citation có cấu trúc (đúng document, đúng đoạn), không parse tay.
+Each retrieved section goes in as a `document` block with citations enabled
+-> the response carries structured citations (right document, right passage),
+no manual parsing.
 
-build_answer_request() là hàm thuần (không gọi mạng) để test offline cấu trúc request.
+build_answer_request() is a pure function (no network) so the request
+structure can be tested offline.
 """
 
 import re
@@ -11,22 +13,22 @@ import re
 from src import config
 from src.query import retrieve
 
-SYSTEM_PROMPT = """Bạn là trợ lý nghiên cứu, trả lời DỰA HOÀN TOÀN trên các tài liệu được cung cấp.
-Quy tắc:
-- Chỉ nói những gì có căn cứ trong tài liệu. Không đủ căn cứ thì nói rõ "các paper trong kho không đề cập".
-- Trả lời bằng đúng ngôn ngữ của câu hỏi.
-- Khi nêu phương pháp/số liệu, luôn gắn với paper cụ thể (citations sẽ tự đính kèm)."""
+SYSTEM_PROMPT = """You are a research assistant; answer ENTIRELY based on the provided documents.
+Rules:
+- Only state what the documents support. If the grounding is insufficient, say clearly "the papers in the corpus do not cover this".
+- Answer in the same language as the question.
+- When citing methods/numbers, always tie them to a specific paper (citations attach automatically)."""
 
 
-# ----------------------------------------------------- build request (thuần)
+# ----------------------------------------------------- build request (pure)
 
 def build_answer_request(question: str, sections: list[dict],
                          model: str | None = None, max_tokens: int = 4096) -> dict:
-    """Dựng request Messages API — tách riêng để test không cần gọi mạng.
+    """Build the Messages API request — separated out so tests need no network.
 
-    Prompt caching (task 5.3): cache_control đặt trên document block CUỐI —
-    hỏi nhiều câu trên cùng bộ section (hội thoại đào sâu 1 paper) chỉ trả
-    ~10% giá cho phần tài liệu từ request thứ 2.
+    Prompt caching (task 5.3): cache_control goes on the LAST document block —
+    asking several questions over the same section set (deep-diving one paper)
+    costs only ~10% for the document part from the second request on.
     """
     content: list[dict] = []
     for i, sec in enumerate(sections):
@@ -52,8 +54,8 @@ def build_answer_request(question: str, sections: list[dict],
 def extract_answer(response) -> dict:
     """Response -> {"text", "citations": [{"title", "cited_text"}]}.
 
-    Với citations bật, text bị chia thành nhiều block; block nào có căn cứ
-    mang mảng .citations. Đánh số [n] theo document title xuất hiện.
+    With citations enabled the text splits into multiple blocks; grounded
+    blocks carry a .citations array. Number [n] by document-title appearance.
     """
     text_parts: list[str] = []
     citations: list[dict] = []
@@ -79,24 +81,24 @@ def extract_answer(response) -> dict:
 
 
 def format_answer(result: dict) -> str:
-    """Render ra text cho CLI: câu trả lời + danh mục nguồn."""
+    """Render CLI text: the answer + a source list."""
     out = result["text"]
     if result["citations"]:
-        out += "\n\nNguồn:\n" + "\n".join(
+        out += "\n\nSources:\n" + "\n".join(
             f'  [{c["n"]}] {c["title"]}' for c in result["citations"]
         )
     return out
 
 
-# ------------------------------------------------------------ gọi API (2.2)
+# ------------------------------------------------------------ API call (2.2)
 
 def answer(question: str, filters: dict | None = None, **retrieve_kwargs) -> dict:
-    """Câu hỏi thường: retrieve -> 1 call Claude với citations."""
+    """Ordinary question: retrieve -> 1 Claude call with citations."""
     import anthropic
 
     sections = retrieve(question, filters=filters, **retrieve_kwargs)
     if not sections:
-        return {"text": "Không tìm thấy đoạn nào liên quan trong kho paper.", "citations": []}
+        return {"text": "No relevant passages found in the paper corpus.", "citations": []}
     request = build_answer_request(question, sections)
     response = anthropic.Anthropic().messages.create(**request)
     result = extract_answer(response)
@@ -104,25 +106,26 @@ def answer(question: str, filters: dict | None = None, **retrieve_kwargs) -> dic
     return result
 
 
-# ------------------------------------------------- so sánh nhiều paper (4.2)
+# ------------------------------------------------ multi-paper comparison (4.2)
 
-_MAP_PROMPT = """Dựa trên các trích đoạn từ paper "{title}", tóm tắt góc nhìn của paper này
-cho câu hỏi sau (3-5 gạch đầu dòng, chỉ dùng thông tin trong trích đoạn):
+_MAP_PROMPT = """Based on the excerpts from the paper "{title}", summarize this paper's
+perspective on the following question (3-5 bullet points, using only information
+from the excerpts):
 
 {question}"""
 
-_REDUCE_PROMPT = """Câu hỏi so sánh: {question}
+_REDUCE_PROMPT = """Comparison question: {question}
 
-Tóm tắt góc nhìn của từng paper:
+Per-paper perspective summaries:
 
 {summaries}
 
-So sánh trực tiếp các paper trên theo câu hỏi. Trình bày điểm giống, điểm khác,
-và điều kiện áp dụng của mỗi cách tiếp cận. Trả lời bằng ngôn ngữ của câu hỏi."""
+Directly compare the papers above on the question. Lay out similarities,
+differences, and when each approach applies. Answer in the question's language."""
 
 
 def compare_papers(question: str, paper_ids: list[str], llm=None, **retrieve_kwargs) -> dict:
-    """Map-reduce: retrieve + tóm tắt riêng từng paper (map) -> 1 call tổng hợp (reduce)."""
+    """Map-reduce: retrieve + summarize each paper separately (map) -> 1 synthesis call (reduce)."""
     if llm is None:
         from src.llm import complete
 
@@ -134,7 +137,7 @@ def compare_papers(question: str, paper_ids: list[str], llm=None, **retrieve_kwa
     for pid in paper_ids:
         sections = retrieve(question, filters={"paper_id": pid}, top_k=5, **retrieve_kwargs)
         if not sections:
-            summaries.append(f"### {pid}\n(không tìm thấy đoạn liên quan)")
+            summaries.append(f"### {pid}\n(no relevant passages found)")
             continue
         title = sections[0]["paper_title"]
         excerpt = "\n\n".join(s["text"][:3000] for s in sections)
@@ -147,15 +150,17 @@ def compare_papers(question: str, paper_ids: list[str], llm=None, **retrieve_kwa
 
 # ------------------------------------------------------------- router (4.3)
 
+# Vietnamese comparison words are kept deliberately — the assistant supports
+# questions asked in Vietnamese (see the multilingual expansion feature).
 _COMPARE_WORDS = re.compile(r"\b(so sánh|khác nhau|khác gì|compare|versus|vs\.?|difference)\b", re.I)
 
 
 def route(question: str, known_paper_ids: list[str]) -> dict:
-    """Heuristic v1: câu hỏi thuộc loại nào?
+    """Heuristic v1: what kind of question is this?
 
-    - "compare": nhắc >=2 paper_id, hoặc có từ so sánh + >=1 id
-    - "single":  nhắc đúng 1 paper_id -> filter paper đó
-    - "general": còn lại -> search toàn kho
+    - "compare": mentions >=2 paper_ids, or a comparison word + >=1 id
+    - "single":  mentions exactly 1 paper_id -> filter to that paper
+    - "general": everything else -> search the whole corpus
     """
     mentioned = [pid for pid in known_paper_ids if pid in question]
     if len(mentioned) >= 2:

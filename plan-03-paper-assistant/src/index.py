@@ -1,7 +1,7 @@
-"""P1 (task 1.4 + 1.5) — Qdrant (vector) + SQLite (metadata & full section).
+"""P1 (tasks 1.4 + 1.5) — Qdrant (vectors) + SQLite (metadata & full sections).
 
-Qdrant: chunk nhỏ + payload để filter (paper_id, section_type, year).
-SQLite: full text từng section -> parent-document retrieval ở P3.
+Qdrant: small chunks + payload for filtering (paper_id, section_type, year).
+SQLite: full text of each section -> parent-document retrieval in P3.
 """
 
 import json
@@ -17,10 +17,10 @@ from src.embedding import Embedder, get_embedder
 from src.ingest import Chunk, Paper
 
 
-# ------------------------------------------------------------------- kết nối
+# ------------------------------------------------------------------ connections
 
 def get_qdrant() -> QdrantClient:
-    """QDRANT_URL (docker server) nếu có, không thì embedded mode tại data/qdrant."""
+    """QDRANT_URL (docker server) when set, otherwise embedded mode at data/qdrant."""
     if config.QDRANT_URL:
         return QdrantClient(url=config.QDRANT_URL)
     Path(config.QDRANT_PATH).parent.mkdir(parents=True, exist_ok=True)
@@ -28,7 +28,7 @@ def get_qdrant() -> QdrantClient:
 
 
 def ensure_collection(client: QdrantClient, dim: int) -> None:
-    """Tạo collection nếu chưa có. Đổi embedder (đổi dim) -> xóa collection index lại."""
+    """Create the collection if missing. Switching embedders (new dim) -> delete and re-index."""
     if not client.collection_exists(config.COLLECTION):
         client.create_collection(
             config.COLLECTION,
@@ -56,13 +56,13 @@ def _connect_db(db_path: Path | None = None) -> sqlite3.Connection:
     return conn
 
 
-# --------------------------------------------------------------------- ghi
+# --------------------------------------------------------------------- write
 
 def save_metadata(paper: Paper, chunks: list[Chunk], db_path: Path | None = None) -> None:
-    """Task 1.5 — paper + full text từng section vào SQLite (INSERT OR REPLACE = idempotent).
+    """Task 1.5 — paper + full section text into SQLite (INSERT OR REPLACE = idempotent).
 
-    Full text section được ghép lại từ chunks (đã qua lọc References) để
-    parent-document retrieval trả về đúng những gì đã được index.
+    Full section text is reassembled from the chunks (already References-filtered)
+    so parent-document retrieval returns exactly what was indexed.
     """
     conn = _connect_db(db_path)
     with conn:
@@ -81,7 +81,7 @@ def save_metadata(paper: Paper, chunks: list[Chunk], db_path: Path | None = None
                  group[0].section, group[0].section_type,
                  "\n\n".join(c.text for c in group)),
             )
-        # Bảng chunks: nguồn corpus cho BM25 (hybrid search ở P3)
+        # chunks table: the BM25 corpus (hybrid search in P3)
         for c in chunks:
             conn.execute(
                 "INSERT OR REPLACE INTO chunks VALUES (?,?,?,?,?,?,?,?)",
@@ -93,7 +93,7 @@ def save_metadata(paper: Paper, chunks: list[Chunk], db_path: Path | None = None
 
 def upsert_chunks(chunks: list[Chunk], embedder: Embedder | None = None,
                   client: QdrantClient | None = None) -> int:
-    """Task 1.4 — embed + upsert Qdrant. Point id = uuid5(chunk_id) -> chạy lại không duplicate."""
+    """Task 1.4 — embed + upsert into Qdrant. Point id = uuid5(chunk_id) -> re-runs don't duplicate."""
     if not chunks:
         return 0
     embedder = embedder or get_embedder()
@@ -117,13 +117,13 @@ def upsert_chunks(chunks: list[Chunk], embedder: Embedder | None = None,
     return len(points)
 
 
-# --------------------------------------------------------------------- đọc
+# --------------------------------------------------------------------- read
 
 def search(query: str, top_k: int = 20, filters: dict | None = None,
            embedder: Embedder | None = None, client: QdrantClient | None = None) -> list[dict]:
-    """Vector search có filter payload (paper_id / section_type / year).
+    """Vector search with payload filters (paper_id / section_type / year).
 
-    Đây là bản v1 cho task 2.1 — hybrid (BM25 + RRF) sẽ bọc quanh hàm này ở P3.
+    This is the v1 for task 2.1 — hybrid (BM25 + RRF) wraps around it in P3.
     """
     embedder = embedder or get_embedder()
     client = client or get_qdrant()
@@ -143,7 +143,7 @@ def search(query: str, top_k: int = 20, filters: dict | None = None,
 
 
 def load_chunks(db_path: Path | None = None, filters: dict | None = None) -> list[dict]:
-    """Toàn bộ chunk từ SQLite — corpus cho BM25 (P3). Filter tùy chọn."""
+    """All chunks from SQLite — the BM25 corpus (P3). Optional filters."""
     conn = _connect_db(db_path)
     sql = "SELECT chunk_id, parent_section_id, paper_id, title, year, section, section_type, text FROM chunks"
     params: list = []
@@ -160,7 +160,7 @@ def load_chunks(db_path: Path | None = None, filters: dict | None = None) -> lis
 
 
 def list_papers(db_path: Path | None = None) -> list[dict]:
-    """Danh sách paper đã index — cho CLI `list` và router nhận diện paper_id trong câu hỏi."""
+    """Indexed papers — for the `list` CLI and the router's paper_id detection."""
     conn = _connect_db(db_path)
     rows = conn.execute("SELECT paper_id, title, year FROM papers ORDER BY year DESC").fetchall()
     conn.close()
@@ -168,7 +168,7 @@ def list_papers(db_path: Path | None = None) -> list[dict]:
 
 
 def get_section(parent_section_id: str, db_path: Path | None = None) -> dict | None:
-    """Full text một section — dùng cho parent-document retrieval (P3)."""
+    """Full text of one section — used for parent-document retrieval (P3)."""
     conn = _connect_db(db_path)
     row = conn.execute(
         "SELECT parent_section_id, paper_id, paper_title, section, section_type, text "

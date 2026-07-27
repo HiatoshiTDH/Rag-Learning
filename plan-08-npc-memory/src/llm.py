@@ -1,13 +1,13 @@
-"""Wrapper mỏng quanh Claude API + ScriptedLLM (fake) cho test offline.
+"""Thin wrapper around the Claude API + ScriptedLLM (fake) for offline tests.
 
-Mọi module nhận `llm` qua tham số (inject được) — code gọi thẳng anthropic
-chỉ nằm ở đây. Import anthropic để lazy trong AnthropicLLM: test offline
-không cần cài/không cần key.
+Every module receives `llm` as a parameter (injectable) — code that talks to
+anthropic directly lives only here. The anthropic import is lazy inside
+AnthropicLLM: offline tests need no install and no key.
 
-3 mặt cắt mà Plan 8 cần:
-- complete_json: importance scoring + reflection (structured output theo schema)
-- stream_dialogue: thoại NPC — yield từng mẩu text về client, kèm tool_use
-  proposals ở cuối (LLM KHÔNG tự quyết gameplay — xem dialogue.py)
+The 3 surfaces Plan 8 needs:
+- complete_json: importance scoring + reflection (structured output by schema)
+- stream_dialogue: NPC dialogue — yields text chunks to the client, with any
+  tool_use proposals at the end (the LLM NEVER decides gameplay — see dialogue.py)
 """
 
 import json
@@ -15,7 +15,7 @@ from typing import Any, Iterator, Protocol
 
 from src import config
 
-# Sự kiện stream_dialogue yield ra: ("text", str) | ("tool_use", dict)
+# Events yielded by stream_dialogue: ("text", str) | ("tool_use", dict)
 StreamEvent = tuple[str, Any]
 
 
@@ -29,7 +29,7 @@ class LLM(Protocol):
 
 
 class AnthropicLLM:
-    """Backend thật. Đọc ANTHROPIC_API_KEY từ env."""
+    """Real backend. Reads ANTHROPIC_API_KEY from the environment."""
 
     def __init__(self, timeout: float | None = None):
         import anthropic
@@ -71,22 +71,22 @@ class AnthropicLLM:
 
 
 class ScriptedLLM:
-    """Fake cho test/dev offline — trả lời theo kịch bản, ghi lại mọi call.
+    """Fake for tests/offline dev — replies from a script, records every call.
 
-    replies: list, mỗi phần tử ứng với 1 call theo thứ tự:
-      - complete_json lấy phần tử tiếp theo làm giá trị trả về (dict/list)
-      - stream_dialogue lấy phần tử tiếp theo: str (chỉ text) hoặc dict
+    replies: a list; each element answers one call, in order:
+      - complete_json pops the next element as its return value (dict/list)
+      - stream_dialogue pops the next element: str (text only) or dict
         {"text": str, "tool_calls": [{"name":..., "input":...}]}
-      - một Exception instance -> raise (giả lập timeout/API lỗi)
+      - an Exception instance -> raised (simulates timeout/API failure)
     """
 
     def __init__(self, replies: list | None = None):
         self.replies = list(replies or [])
-        self.calls: list[dict] = []  # để test assert prompt có chứa ký ức kỳ vọng
+        self.calls: list[dict] = []  # lets tests assert the prompt contains expected memories
 
     def _next(self):
         if not self.replies:
-            raise AssertionError("ScriptedLLM hết kịch bản — thêm phần tử vào replies")
+            raise AssertionError("ScriptedLLM ran out of script — add elements to replies")
         reply = self.replies.pop(0)
         if isinstance(reply, Exception):
             raise reply
@@ -107,7 +107,7 @@ class ScriptedLLM:
         reply = self._next()
         if isinstance(reply, str):
             reply = {"text": reply}
-        # yield từng "từ" một để giả lập streaming thật
+        # yield word by word to simulate real streaming
         text = reply.get("text", "")
         for i, word in enumerate(text.split(" ")):
             yield ("text", word if i == 0 else " " + word)
@@ -116,7 +116,7 @@ class ScriptedLLM:
 
 
 def get_llm(timeout: float | None = None) -> LLM | None:
-    """None khi LLM_BACKEND=none — server vẫn chạy được phần ghi/đọc ký ức."""
+    """None when LLM_BACKEND=none — the server still serves memory read/write."""
     if config.LLM_BACKEND == "none":
         return None
     return AnthropicLLM(timeout=timeout)

@@ -1,7 +1,7 @@
-"""Golden set — tạo từ tuần 2, chạy lại mỗi lần đổi chunking/embedding/re-rank.
+"""Golden set — built from week 2 on; re-run on every chunking/embedding/re-rank change.
 
-Mỗi case: câu hỏi + paper_id/section kỳ vọng xuất hiện trong top-k.
-Bắt đầu ~30 câu trên chính các paper bạn đã đọc kỹ.
+Each case: a question + the paper_id/section expected in the top-k.
+Start with ~30 questions on the very papers you have read carefully.
 """
 
 GOLDEN_SET = [
@@ -10,6 +10,6 @@ GOLDEN_SET = [
 
 
 def test_golden_set_recall():
-    """TODO(tuần 2): với mỗi case, chạy hybrid_search + rerank,
-    assert paper/section kỳ vọng nằm trong top-8. Báo % recall tổng."""
-    assert True  # placeholder cho tới khi có index thật
+    """TODO(week 2): for each case, run hybrid_search + rerank,
+    assert the expected paper/section is in the top-8. Report total recall %."""
+    assert True  # placeholder until a real index exists

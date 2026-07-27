@@ -1,15 +1,15 @@
-"""P2 (2.4) + P3 (3.5) — Đo recall@k trên golden set, ghi kết quả vào EXPERIMENTS.md.
+"""P2 (2.4) + P3 (3.5) — Measure recall@k on the golden set, log to EXPERIMENTS.md.
 
-Golden set: data/golden_set.jsonl — mỗi dòng một JSON:
+Golden set: data/golden_set.jsonl — one JSON per line:
   {"question": "...", "expect_paper": "2304.03442", "expect_section_type": "method"}
-(expect_section_type là tùy chọn; xem data/golden_set.example.jsonl)
+(expect_section_type is optional; see data/golden_set.example.jsonl)
 
-Chạy: python -m src.cli eval --stage full
-Stages để đo từng tầng (task 3.5):
-  v1     = vector search thuần, không expand, không rerank
+Run: python -m src.cli eval --stage full
+Stages to measure each layer (task 3.5):
+  v1     = pure vector search, no expansion, no rerank
   hybrid = + BM25/RRF
   rerank = + re-ranking
-  full   = + query expansion (mặc định)
+  full   = + query expansion (default)
 """
 
 import json
@@ -22,8 +22,8 @@ from src.rerank import NoopReranker
 
 
 STAGES = {
-    #        expand, hybrid, reranker (None = theo config RERANK_BACKEND)
-    "v1":     (False, False, NoopReranker()),   # vector thuần — baseline
+    #        expand, hybrid, reranker (None = follow the RERANK_BACKEND config)
+    "v1":     (False, False, NoopReranker()),   # pure vector — baseline
     "hybrid": (False, True,  NoopReranker()),   # + BM25/RRF
     "rerank": (False, True,  None),             # + re-ranking
     "full":   (True,  True,  None),             # + query expansion
@@ -43,7 +43,7 @@ def load_golden_set(path: Path | None = None) -> list[dict]:
 
 
 def hit(case: dict, results: list[dict]) -> bool:
-    """Một case pass khi paper kỳ vọng (và section_type nếu có) nằm trong top-k."""
+    """A case passes when the expected paper (and section_type, if set) is in the top-k."""
     for r in results:
         if r["paper_id"] != case["expect_paper"]:
             continue
@@ -56,11 +56,11 @@ def hit(case: dict, results: list[dict]) -> bool:
 
 def run_eval(stage: str = "full", top_k: int = 8, cases: list[dict] | None = None,
              **retrieve_kwargs) -> dict:
-    """Chạy golden set qua retrieve với cấu hình stage, trả recall@k + list case fail."""
+    """Run the golden set through retrieve with the stage config; return recall@k + failed cases."""
     cases = cases if cases is not None else load_golden_set()
     if not cases:
         raise SystemExit(
-            f"Golden set trống ({config.GOLDEN_SET}) — tạo theo data/golden_set.example.jsonl trước."
+            f"Golden set empty ({config.GOLDEN_SET}) — create one from data/golden_set.example.jsonl first."
         )
     expand, hybrid, reranker = STAGES[stage]
 
@@ -78,14 +78,14 @@ def run_eval(stage: str = "full", top_k: int = 8, cases: list[dict] | None = Non
 
 
 def log_experiment(result: dict, note: str = "") -> None:
-    """Task 3.5 — append một dòng vào EXPERIMENTS.md (tạo file kèm header nếu chưa có)."""
+    """Task 3.5 — append one row to EXPERIMENTS.md (creating it with a header if missing)."""
     path = config.EXPERIMENTS_FILE
     if not path.exists():
         path.write_text(
-            "# Nhật ký thí nghiệm retrieval\n\n"
-            "Mỗi lần đổi chunking/embedding/re-rank -> chạy `python -m src.cli eval` và ghi lại.\n\n"
-            "| Ngày | Stage | recall@k | n case | Ghi chú |\n"
-            "|------|-------|----------|--------|--------|\n"
+            "# Retrieval experiment log\n\n"
+            "Every chunking/embedding/re-rank change -> run `python -m src.cli eval` and record it.\n\n"
+            "| Date | Stage | recall@k | n cases | Note |\n"
+            "|------|-------|----------|---------|------|\n"
         )
     row = (f'| {date.today()} | {result["stage"]} '
            f'| {result["recall"]:.2f}@{result["top_k"]} | {result["n"]} | {note} |\n')
@@ -97,6 +97,6 @@ def print_report(result: dict) -> None:
     print(f'Stage: {result["stage"]}  —  recall@{result["top_k"]} = '
           f'{result["recall"]:.2%}  ({result["n"] - len(result["failures"])}/{result["n"]})')
     if result["failures"]:
-        print("Case fail:")
+        print("Failed cases:")
         for q in result["failures"]:
             print(f"  - {q}")

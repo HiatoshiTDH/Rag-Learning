@@ -1,8 +1,8 @@
-"""LLM-as-judge cho test harness (README mục 7).
+"""LLM-as-judge for the test harness (README section 7).
 
-Assert kiểu "câu trả lời CÓ THỂ HIỆN việc nhớ X không?" — không so khớp
-chuỗi cứng vì thoại LLM mỗi lần một khác. Test offline dùng ScriptedLLM;
-bài test live (TEST_AT_HOME) dùng backend thật.
+Assertions like "does the reply SHOW the NPC remembers X?" — no hard string
+matching, since LLM dialogue differs every run. Offline tests use ScriptedLLM;
+the live suite (TEST_AT_HOME) uses the real backend.
 """
 
 from src import config
@@ -21,14 +21,14 @@ _JUDGE_SCHEMA = {
 
 def judge_remembers(reply: str, expectation: str, llm: LLM,
                     model: str = config.SCORING_MODEL) -> dict:
-    """expectation ví dụ: 'NPC nhớ người chơi từng hứa mang thuốc'.
+    """expectation example: 'the NPC remembers the player promised to bring medicine'.
 
-    Trả về {"remembers": bool, "reason": str}.
+    Returns {"remembers": bool, "reason": str}.
     """
     return llm.complete_json(
-        f"Một NPC trong game trả lời người chơi như sau:\n\n"
+        f"A game NPC replied to a player as follows:\n\n"
         f"\"{reply}\"\n\n"
-        f"Câu trả lời này có thể hiện điều sau không: {expectation}?\n"
-        f"Chỉ xét nội dung câu trả lời, không suy diễn thêm.",
+        f"Does this reply show the following: {expectation}?\n"
+        f"Judge only the reply's content; do not extrapolate.",
         model=model, schema=_JUDGE_SCHEMA,
     )

@@ -1,9 +1,10 @@
-"""Tuần 2 + 4 — Trái tim của plan: retrieval 3 trục + importance scoring.
+"""Weeks 2 + 4 — The heart of the plan: three-axis retrieval + importance scoring.
 
     score = ALPHA * recency + BETA * importance + GAMMA * relevance
 
-Bắt đầu với 1/1/1 như paper Generative Agents, rồi tune theo game feel.
-Thiếu recency -> NPC nhắc chuyện 50 giờ trước mà quên chuyện vừa xảy ra.
+Start at 1/1/1 like the Generative Agents paper, then tune for game feel.
+Missing recency -> the NPC brings up something from 50 hours ago while
+forgetting what just happened.
 """
 
 from datetime import datetime, timezone
@@ -15,9 +16,9 @@ from src.memory_store import MemoryRecord, MemoryStore
 ALPHA = 1.0   # recency
 BETA = 1.0    # importance
 GAMMA = 1.0   # relevance
-DECAY = 0.995  # recency = DECAY ^ (số giờ từ last_accessed)
+DECAY = 0.995  # recency = DECAY ^ (hours since last_accessed)
 
-# Sự kiện gameplay có loại rõ ràng thì gán cứng, khỏi tốn LLM call (README 4.2)
+# Gameplay events with a clear category get hard-coded values — no LLM call (README 4.2)
 FIXED_IMPORTANCE = {
     "player_attack_npc": 9,
     "player_theft": 8,
@@ -29,7 +30,7 @@ FIXED_IMPORTANCE = {
     "player_greeting": 2,
 }
 
-# Sự kiện không có trong bảng và không có LLM để chấm -> mặc định trung bình thấp
+# Events not in the table with no LLM available to score -> low-average default
 DEFAULT_IMPORTANCE = 3
 
 _SCORES_SCHEMA = {
@@ -48,8 +49,8 @@ def recency(record: MemoryRecord, now: datetime) -> float:
 
 
 def score(record: MemoryRecord, relevance: float, now: datetime) -> float:
-    """Điểm 3 trục cho 1 record. importance chuẩn hóa 1-10 -> [0,1];
-    relevance là cosine từ vector search, kẹp về [0,1]."""
+    """Three-axis score for one record. importance 1-10 normalized to [0,1];
+    relevance is the cosine from vector search, clamped to [0,1]."""
     rel = min(1.0, max(0.0, relevance))
     return (ALPHA * recency(record, now)
             + BETA * record.importance / 10
@@ -59,11 +60,11 @@ def score(record: MemoryRecord, relevance: float, now: datetime) -> float:
 def retrieve(candidates: list[MemoryRecord], relevance: dict[str, float],
              now: datetime | None = None, top_k: int = 12,
              store: MemoryStore | None = None) -> list[MemoryRecord]:
-    """Chấm score 3 trục trên top-50 ứng viên từ vector search, trả top 8-15.
+    """Score the top-50 vector-search candidates on three axes, return the top 8-15.
 
-    Truyền `store` để tự động touch() các record được chọn (ký ức được nhắc
-    lại thì tươi trở lại). Reflection gọi với store=None để không làm méo
-    recency khi chỉ đọc nội bộ.
+    Pass `store` to automatically touch() the selected records (a recalled
+    memory becomes fresh again). Reflection calls this with store=None so its
+    internal reads don't distort recency.
     """
     now = now or datetime.now(timezone.utc)
     ranked = sorted(candidates,
@@ -78,16 +79,16 @@ def retrieve(candidates: list[MemoryRecord], relevance: dict[str, float],
 def score_importance_batch(events: list[dict], npc_persona: str,
                            llm: LLM | None = None,
                            model: str = config.SCORING_MODEL) -> list[int]:
-    """Chấm importance cho 1 batch event.
+    """Score importance for a batch of events.
 
-    - event có "kind" trong FIXED_IMPORTANCE -> gán bảng, khỏi gọi LLM.
-    - còn lại gom lại chấm MỘT lần bằng Claude Haiku + structured output
-      (mẹo giảm cost, README 4.2). Không có LLM -> DEFAULT_IMPORTANCE.
+    - events whose "kind" is in FIXED_IMPORTANCE -> table value, no LLM call.
+    - the rest are scored in ONE batched call to Claude Haiku + structured
+      output (the cost trick from README 4.2). No LLM -> DEFAULT_IMPORTANCE.
 
-    events: [{"kind": str, "text": str}, ...] -> list[int] cùng thứ tự.
+    events: [{"kind": str, "text": str}, ...] -> list[int] in the same order.
     """
     results: list[int | None] = []
-    pending: list[int] = []  # index của event cần LLM chấm
+    pending: list[int] = []  # indexes of events that need LLM scoring
     for i, event in enumerate(events):
         fixed = FIXED_IMPORTANCE.get(event.get("kind", ""))
         results.append(fixed)
@@ -95,16 +96,16 @@ def score_importance_batch(events: list[dict], npc_persona: str,
             pending.append(i)
 
     if pending and llm is not None:
-        # Gom 10-20 event/lần gọi để không phình prompt
+        # Group 10-20 events per call to keep the prompt small
         for start in range(0, len(pending), 20):
             chunk = pending[start:start + 20]
             listing = "\n".join(
                 f"{j + 1}. {events[idx]['text']}" for j, idx in enumerate(chunk))
             prompt = (
-                f"Bạn là NPC với tính cách và mục tiêu sau:\n{npc_persona}\n\n"
-                f"Trên thang 1-10, mỗi sự kiện sau quan trọng thế nào với bạn?\n"
-                f"(1 = vụn vặt hằng ngày, 10 = thay đổi cuộc đời)\n\n{listing}\n\n"
-                f"Trả về mảng scores đúng {len(chunk)} số, theo đúng thứ tự."
+                f"You are an NPC with the following personality and goals:\n{npc_persona}\n\n"
+                f"On a 1-10 scale, how important is each of the following events to you?\n"
+                f"(1 = everyday trivia, 10 = life-changing)\n\n{listing}\n\n"
+                f"Return a scores array of exactly {len(chunk)} integers, in the same order."
             )
             scores = llm.complete_json(prompt, model=model, schema=_SCORES_SCHEMA)["scores"]
             for j, idx in enumerate(chunk):

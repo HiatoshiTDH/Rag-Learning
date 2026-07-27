@@ -1,133 +1,133 @@
-# Plan 3 — Full Plan thực thi (Paper Assistant)
+# Plan 3 — Full execution plan (Paper Assistant)
 
-> Tài liệu này là **kế hoạch thực thi chi tiết** — chia phase, task, definition of done, ước lượng giờ.
-> Kiến trúc & lý do thiết kế: xem [README.md](README.md). Chuẩn bị môi trường: xem [SETUP.md](SETUP.md).
+> This document is the **detailed execution plan** — phases, tasks, definitions of done, hour estimates.
+> Architecture & design rationale: see [README.md](README.md). Environment preparation: see [SETUP.md](SETUP.md).
 
-> **📍 TRẠNG THÁI HIỆN TẠI: toàn bộ code P1→P5 đã viết xong, 26 test offline pass.**
-> Việc còn lại làm trên máy nhà (cần Docker + API key + mạng tới arXiv):
-> chạy theo **[TEST_AT_HOME.md](TEST_AT_HOME.md)** — hoặc `./scripts/smoke_test.sh` cho bản tự động.
-> Phần code duy nhất chưa làm: 5.4 UI web (tùy chọn, chỉ làm nếu CLI thấy thiếu).
+> **📍 CURRENT STATUS: all P1→P5 code is written; the 26 offline tests pass.**
+> Remaining work happens on the home machine (needs Docker + API keys + network access to arXiv):
+> follow **[TEST_AT_HOME.md](TEST_AT_HOME.md)** — or `./scripts/smoke_test.sh` for the automated version.
+> The only unwritten code: 5.4 web UI (optional; only build it if the CLI feels lacking).
 
-## Nguyên tắc thực thi
+## Execution principles
 
-1. **Mỗi phase kết thúc bằng một thứ chạy được** — không có phase nào "chỉ viết code chưa test được".
-2. **Golden set có từ Phase 2**, trước khi tối ưu bất cứ thứ gì. Mọi thay đổi sau đó phải có số chứng minh.
-3. Làm tuần tự P0 → P5. Trong một phase các task có thể xen kẽ.
+1. **Every phase ends with something runnable** — no phase is "code written but nothing testable".
+2. **The golden set exists from Phase 2**, before optimizing anything. Every later change must come with numbers to prove it.
+3. Work sequentially P0 → P5. Within a phase, tasks may be interleaved.
 
-## Tổng quan các phase
+## Phase overview
 
-| Phase | Tên | Thời gian | Kết quả chạy được |
+| Phase | Name | Time | Runnable outcome |
 |-------|-----|-----------|-------------------|
-| P0 | Chuẩn bị môi trường | 0.5 ngày | GROBID + Qdrant chạy local, API key hoạt động |
-| P1 | Ingest pipeline | Tuần 1 | Index 10 paper, soi được chunk đúng section |
-| P2 | Query v1 + Golden set | Tuần 2 | Hỏi → trả lời có citation đúng (vector search thuần) |
-| P3 | Retrieval nâng cao | Tuần 2–3 | Hybrid + re-rank + parent-doc, recall đo được tăng |
-| P4 | Query expansion + multi-paper | Tuần 3 | Hỏi tiếng Việt được; so sánh 2+ paper được |
-| P5 | Đóng gói sử dụng hằng ngày | Tuần 4 | CLI + auto-ingest arXiv theo keyword |
+| P0 | Environment preparation | 0.5 day | GROBID + Qdrant running locally, API keys working |
+| P1 | Ingest pipeline | Week 1 | 10 papers indexed, chunks inspectable with correct sections |
+| P2 | Query v1 + Golden set | Week 2 | Ask → answer with correct citations (pure vector search) |
+| P3 | Advanced retrieval | Weeks 2–3 | Hybrid + re-rank + parent-doc, measured recall improvement |
+| P4 | Query expansion + multi-paper | Week 3 | Vietnamese questions work; comparing 2+ papers works |
+| P5 | Package for daily use | Week 4 | CLI + auto-ingest from arXiv by keyword |
 
 ---
 
-## P0 — Chuẩn bị môi trường (0.5 ngày)
+## P0 — Environment preparation (0.5 day)
 
-Checklist chi tiết trong [SETUP.md](SETUP.md). Tóm tắt:
+Detailed checklist in [SETUP.md](SETUP.md). Summary:
 
-- [ ] `docker compose up -d` → GROBID (8070) + Qdrant (6333) chạy
-- [ ] `.env` có `ANTHROPIC_API_KEY` + `VOYAGE_API_KEY` (hoặc chọn phương án local-free)
-- [ ] `pip install -r requirements.txt` trong venv
-- [ ] Sanity check: curl GROBID trả `GROBID service is up`, mở Qdrant dashboard `localhost:6333/dashboard`
-- [ ] Chọn sẵn **10 paper khởi đầu** theo hướng nghiên cứu của bạn (chọn paper đã đọc kỹ — cần cho golden set ở P2)
+- [ ] `docker compose up -d` → GROBID (8070) + Qdrant (6333) running
+- [ ] `.env` has `ANTHROPIC_API_KEY` + `VOYAGE_API_KEY` (or choose the local-free option)
+- [ ] `pip install -r requirements.txt` inside a venv
+- [ ] Sanity check: curl GROBID returns `GROBID service is up`, open the Qdrant dashboard `localhost:6333/dashboard`
+- [ ] Pre-select **10 starter papers** in your research direction (pick papers you have read carefully — needed for the golden set in P2)
 
-## P1 — Ingest pipeline (tuần 1, ~12–16h)
+## P1 — Ingest pipeline (week 1, ~12–16h)
 
-> **Trạng thái: ✅ code + test xong** (12 test offline pass — parse TEI, chunking, index, search, idempotency).
-> Còn lại của P1: chạy live trên máy có Docker — `docker compose up -d`, điền seed_papers.txt, rồi `python -m src.ingest_all` (task 1.1/1.2 phần mạng đã code sẵn, chỉ cần chạy).
+> **Status: ✅ code + tests done** (12 offline tests pass — TEI parsing, chunking, index, search, idempotency).
+> Remaining for P1: run live on a machine with Docker — `docker compose up -d`, fill in seed_papers.txt, then `python -m src.ingest_all` (the network parts of tasks 1.1/1.2 are already coded, just need to run).
 
-| # | Task | File | DoD | Giờ |
+| # | Task | File | DoD | Hours |
 |---|------|------|-----|-----|
-| 1.1 | Tải paper từ arXiv API theo id/keyword, lưu PDF + metadata | `src/ingest.py::fetch_arxiv` | 10 PDF trong `data/papers/`, metadata JSON kèm theo | 2 |
-| 1.2 | Gọi GROBID, parse TEI XML ra cấu trúc (title, sections, paragraphs) | `src/ingest.py::parse_pdf` | In ra được cây section của 1 paper, đúng thứ tự, không lẫn 2 cột | 3 |
-| 1.3 | Structure-aware chunking + chuẩn hóa `section_type` | `src/ingest.py::chunk_paper` | Chunk có đủ metadata; abstract là chunk riêng; References bị loại | 4 |
-| 1.4 | Embedding batch + upsert Qdrant (payload đầy đủ) | `src/index.py` | Search thử 1 câu trên Qdrant dashboard ra chunk hợp lý | 3 |
-| 1.5 | Lưu full-text section vào SQLite (cho parent-doc sau này) | `src/index.py` | Query SQLite theo `parent_section_id` ra đúng section | 2 |
-| 1.6 | Script `python -m src.ingest_all` chạy trọn pipeline cho cả thư mục | mới | Chạy 1 lệnh index xong 10 paper, idempotent (chạy lại không duplicate) | 2 |
+| 1.1 | Download papers from the arXiv API by id/keyword, save PDF + metadata | `src/ingest.py::fetch_arxiv` | 10 PDFs in `data/papers/`, with accompanying metadata JSON | 2 |
+| 1.2 | Call GROBID, parse TEI XML into structure (title, sections, paragraphs) | `src/ingest.py::parse_pdf` | Can print the section tree of 1 paper, in order, with no two-column mixing | 3 |
+| 1.3 | Structure-aware chunking + `section_type` normalization | `src/ingest.py::chunk_paper` | Chunks carry full metadata; abstract is its own chunk; References excluded | 4 |
+| 1.4 | Batch embedding + Qdrant upsert (full payload) | `src/index.py` | Trying 1 query in the Qdrant dashboard returns a sensible chunk | 3 |
+| 1.5 | Store full-text sections in SQLite (for parent-doc later) | `src/index.py` | Querying SQLite by `parent_section_id` returns the right section | 2 |
+| 1.6 | Script `python -m src.ingest_all` runs the whole pipeline over the folder | new | One command indexes all 10 papers, idempotent (rerun creates no duplicates) | 2 |
 
-**Bẫy cần né ở P1** (chi tiết README mục 6): PDF 2 cột, References gây nhiễu, chunk cắt ngang đoạn.
+**Pitfalls to avoid in P1** (details in README section 6): two-column PDFs, References polluting retrieval, chunks cutting across paragraphs.
 
-## P2 — Query v1 + Golden set (tuần 2, ~10–14h)
+## P2 — Query v1 + Golden set (week 2, ~10–14h)
 
-| # | Task | File | DoD | Giờ |
+| # | Task | File | DoD | Hours |
 |---|------|------|-----|-----|
-| 2.1 | Vector search thuần: embed câu hỏi → top-8 chunk | `src/query.py::hybrid_search` (bản v1) | Trả về chunk + metadata + score | 2 |
-| 2.2 | Generation với citations API (document blocks) | `src/answer.py::answer` | Câu trả lời kèm citation trỏ đúng paper/section, render ra text | 4 |
-| 2.3 | **Golden set ~30 câu** trên 10 paper đã đọc kỹ | `tests/test_retrieval.py` | Mỗi câu có `expect_paper` (+ `expect_section_type` nếu rõ) | 3 |
-| 2.4 | Script đo recall@8 + báo cáo | `tests/` | Chạy `pytest` ra con số baseline, ghi vào `EXPERIMENTS.md` | 2 |
-| 2.5 | CLI tối thiểu: `python -m src.ask "câu hỏi"` | mới | Dùng được từ terminal | 1 |
+| 2.1 | Pure vector search: embed the question → top-8 chunks | `src/query.py::hybrid_search` (v1 version) | Returns chunks + metadata + score | 2 |
+| 2.2 | Generation with the citations API (document blocks) | `src/answer.py::answer` | Answer with citations pointing to the right paper/section, rendered as text | 4 |
+| 2.3 | **Golden set of ~30 questions** over the 10 well-read papers | `tests/test_retrieval.py` | Each question has `expect_paper` (+ `expect_section_type` when clear) | 3 |
+| 2.4 | Script measuring recall@8 + report | `tests/` | Running `pytest` produces a baseline number, recorded in `EXPERIMENTS.md` | 2 |
+| 2.5 | Minimal CLI: `python -m src.ask "question"` | new | Usable from the terminal | 1 |
 
-**Cột mốc quan trọng:** con số recall baseline ở 2.4 là thước đo cho toàn bộ P3. Ghi lại cẩn thận.
+**Key milestone:** the baseline recall number from 2.4 is the yardstick for all of P3. Record it carefully.
 
-## P3 — Retrieval nâng cao (tuần 2–3, ~12–16h)
+## P3 — Advanced retrieval (weeks 2–3, ~12–16h)
 
-| # | Task | File | DoD | Giờ |
+| # | Task | File | DoD | Hours |
 |---|------|------|-----|-----|
-| 3.1 | BM25 index trên toàn bộ chunk + RRF gộp với vector | `src/query.py` | Recall@8 ≥ baseline (kỳ vọng tăng với câu hỏi chứa thuật ngữ/tên riêng) | 4 |
-| 3.2 | Metadata filter (paper_id, section_type) khi câu hỏi nêu rõ | `src/query.py` | Hỏi "trong paper X..." chỉ search paper X | 2 |
-| 3.3 | Re-ranking top-40 → top-8 | `src/query.py::rerank` | Recall@8 tăng so với 3.1, ghi số vào `EXPERIMENTS.md` | 3 |
-| 3.4 | Parent-document retrieval (chunk → cả section, dedupe) | `src/query.py::to_parent_sections` | Chất lượng câu trả lời cải thiện trên các câu hỏi "giải thích cách..." | 3 |
-| 3.5 | Chạy lại golden set sau mỗi thay đổi, chốt cấu hình tốt nhất | `EXPERIMENTS.md` | Bảng so sánh: v1 / +BM25 / +rerank / +parent-doc | 2 |
+| 3.1 | BM25 index over all chunks + RRF merged with vector | `src/query.py` | Recall@8 ≥ baseline (expected gains on questions containing terminology/proper names) | 4 |
+| 3.2 | Metadata filter (paper_id, section_type) when the question is explicit | `src/query.py` | Asking "in paper X..." searches only paper X | 2 |
+| 3.3 | Re-ranking top-40 → top-8 | `src/query.py::rerank` | Recall@8 up vs 3.1, numbers recorded in `EXPERIMENTS.md` | 3 |
+| 3.4 | Parent-document retrieval (chunk → whole section, dedupe) | `src/query.py::to_parent_sections` | Answer quality improves on "explain how..." questions | 3 |
+| 3.5 | Rerun the golden set after every change, lock in the best config | `EXPERIMENTS.md` | Comparison table: v1 / +BM25 / +rerank / +parent-doc | 2 |
 
-## P4 — Query expansion + multi-paper (tuần 3, ~8–12h)
+## P4 — Query expansion + multi-paper (week 3, ~8–12h)
 
-| # | Task | File | DoD | Giờ |
+| # | Task | File | DoD | Hours |
 |---|------|------|-----|-----|
-| 4.1 | Query expansion: 2–3 biến thể + bản dịch tiếng Anh | `src/query.py::expand_query` | Hỏi tiếng Việt, recall tương đương hỏi tiếng Anh | 3 |
-| 4.2 | Map-reduce cho câu so sánh: retrieve/tóm tắt từng paper → tổng hợp | `src/answer.py::compare_papers` | "So sánh cách A và B đo X" ra bảng so sánh có citation cả 2 phía | 4 |
-| 4.3 | Router đơn giản: câu hỏi 1-paper vs nhiều-paper vs tổng quan | `src/answer.py` | Tự chọn flow đúng cho 3 loại câu trong golden set | 3 |
+| 4.1 | Query expansion: 2–3 variants + English translation | `src/query.py::expand_query` | Asking in Vietnamese gets recall on par with asking in English | 3 |
+| 4.2 | Map-reduce for comparison questions: retrieve/summarize per paper → synthesize | `src/answer.py::compare_papers` | "Compare how A and B measure X" yields a comparison table with citations on both sides | 4 |
+| 4.3 | Simple router: single-paper vs multi-paper vs overview questions | `src/answer.py` | Automatically picks the right flow for the 3 question types in the golden set | 3 |
 
-## P5 — Đóng gói dùng hằng ngày (tuần 4, ~8–12h)
+## P5 — Package for daily use (week 4, ~8–12h)
 
-| # | Task | File | DoD | Giờ |
+| # | Task | File | DoD | Hours |
 |---|------|------|-----|-----|
-| 5.1 | CLI hoàn chỉnh: `ask`, `ingest`, `list`, `compare` | `src/cli.py` | `--help` đầy đủ, lỗi rõ ràng | 3 |
-| 5.2 | Auto-ingest: cron/script quét arXiv theo keyword hằng tuần | mới | Chạy định kỳ, chỉ ingest paper mới (dedupe theo arXiv id) | 3 |
-| 5.3 | Prompt caching cho phần hệ thống + tài liệu lặp lại | `src/answer.py` | `cache_read_input_tokens > 0` ở request thứ 2 trở đi | 2 |
-| 5.4 | (Tùy chọn) UI web tối giản — chỉ làm nếu CLI thấy thiếu | mới | — | 4 |
+| 5.1 | Complete CLI: `ask`, `ingest`, `list`, `compare` | `src/cli.py` | Full `--help`, clear errors | 3 |
+| 5.2 | Auto-ingest: cron/script scanning arXiv by keyword weekly | new | Runs periodically, only ingests new papers (dedupe by arXiv id) | 3 |
+| 5.3 | Prompt caching for the system portion + repeated documents | `src/answer.py` | `cache_read_input_tokens > 0` from the 2nd request onward | 2 |
+| 5.4 | (Optional) Minimal web UI — only if the CLI feels lacking | new | — | 4 |
 
 ---
 
-## Rủi ro & phương án
+## Risks & mitigations
 
-| Rủi ro | Xác suất | Ảnh hưởng | Phương án |
+| Risk | Probability | Impact | Mitigation |
 |--------|----------|-----------|-----------|
-| GROBID parse hỏng với một số paper (layout lạ, scan) | Cao | Vừa | Bỏ qua paper lỗi ở v1, log lại; đừng cố xử lý mọi PDF |
-| Recall thấp với câu hỏi tiếng Việt | Cao | Cao | 4.1 là bắt buộc, không phải tùy chọn; luôn có bản dịch EN trong biến thể query |
-| Chi phí API vượt dự kiến | Thấp | Thấp | Xem bảng chi phí SETUP.md; bật prompt caching (5.3); dev bằng bộ 10 paper nhỏ |
-| Bảng số liệu trong paper không trích được | Chắc chắn | Thấp | Chấp nhận ở v1 (ghi rõ giới hạn); nâng cấp bằng vision model sau (giao Plan 11) |
-| Tune retrieval bằng cảm tính, không hội tụ | Vừa | Cao | Golden set từ P2 + `EXPERIMENTS.md`; không merge thay đổi nào thiếu số |
+| GROBID fails to parse some papers (odd layout, scans) | High | Medium | Skip failing papers in v1, log them; do not try to handle every PDF |
+| Low recall on Vietnamese questions | High | High | 4.1 is mandatory, not optional; always include an EN translation among the query variants |
+| API costs exceed expectations | Low | Low | See the SETUP.md cost table; enable prompt caching (5.3); develop against the small 10-paper set |
+| Numeric tables in papers cannot be extracted | Certain | Low | Accept in v1 (document the limitation); upgrade with a vision model later (hand off to Plan 11) |
+| Tuning retrieval by gut feeling, no convergence | Medium | High | Golden set from P2 + `EXPERIMENTS.md`; merge no change without numbers |
 
-## Quyết định kỹ thuật đã chốt (decision log)
+## Technical decisions locked in (decision log)
 
-| Quyết định | Chọn | Lý do | Xem lại khi |
+| Decision | Choice | Reason | Revisit when |
 |-----------|------|-------|-------------|
-| Parser PDF | GROBID | Chuyên cho paper học thuật, ra TEI XML có section | GROBID lỗi >20% số paper |
-| Vector DB | Qdrant | Payload filtering mạnh, chạy docker local dễ | Cần managed/cloud |
-| Embedding | voyage-3 (option: bge-m3 local) | Đa ngôn ngữ, chất lượng tốt | Chi phí thành vấn đề → bge-m3 |
-| Re-ranker | voyage-rerank-2 (option: bge-reranker-v2-m3 local) | Cùng hệ sinh thái Voyage | Như trên |
-| LLM trả lời | claude-opus-5 | Chất lượng tổng hợp + citations tốt nhất | Cost cao → claude-sonnet-5 cho câu đơn giản |
-| Metadata store | SQLite | Đủ cho single-user, zero-config | Nhiều user → Postgres (+pgvector cân nhắc gộp luôn vector) |
+| PDF parser | GROBID | Purpose-built for academic papers, outputs TEI XML with sections | GROBID fails on >20% of papers |
+| Vector DB | Qdrant | Strong payload filtering, easy local docker | Managed/cloud needed |
+| Embedding | voyage-3 (option: bge-m3 local) | Multilingual, good quality | Cost becomes an issue → bge-m3 |
+| Re-ranker | voyage-rerank-2 (option: bge-reranker-v2-m3 local) | Same Voyage ecosystem | Same as above |
+| Answering LLM | claude-opus-5 | Best synthesis + citations quality | Cost too high → claude-sonnet-5 for simple questions |
+| Metadata store | SQLite | Enough for single-user, zero-config | Multiple users → Postgres (+pgvector, consider merging vectors in too) |
 
-## Ngoài phạm vi (chốt để không phình)
+## Out of scope (locked to prevent scope creep)
 
-- Trích bảng số liệu/hình vẽ (→ Plan 11)
-- Citation graph giữa các paper (→ Plan 9)
-- Multi-user, phân quyền
-- Fine-tune embedding
+- Extracting numeric tables/figures (→ Plan 11)
+- Citation graph between papers (→ Plan 9)
+- Multi-user, permissions
+- Fine-tuning embeddings
 
-## Theo dõi thí nghiệm
+## Experiment tracking
 
-Tạo `EXPERIMENTS.md` từ P2, mỗi dòng một lần chạy golden set:
+Create `EXPERIMENTS.md` from P2; one row per golden-set run:
 
 ```
-| Ngày | Cấu hình | recall@8 | Ghi chú |
+| Date | Config | recall@8 | Notes |
 |------|----------|----------|---------|
 | ...  | v1 vector-only | 0.xx | baseline |
 | ...  | +BM25 RRF      | 0.xx | ... |

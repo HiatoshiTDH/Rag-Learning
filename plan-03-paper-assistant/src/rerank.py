@@ -1,6 +1,6 @@
-"""P3 (task 3.3) — Re-ranking: bước cải thiện chất lượng rõ nhất so với công sức.
+"""P3 (task 3.3) — Re-ranking: the clearest quality win for the effort.
 
-Backend chọn qua env RERANK_BACKEND: voyage | fake | none.
+Backend chosen via the RERANK_BACKEND env var: voyage | fake | none.
 """
 
 import re
@@ -9,7 +9,7 @@ from src import config
 
 
 class FakeReranker:
-    """Chấm theo tỉ lệ trùng từ — deterministic, cho test/dev offline."""
+    """Scores by token-overlap ratio — deterministic, for offline test/dev."""
 
     def rerank(self, query: str, candidates: list[dict], top_k: int) -> list[dict]:
         q_tokens = set(re.findall(r"[a-z0-9]+", query.lower()))
@@ -31,7 +31,7 @@ class VoyageReranker:
         import voyageai
 
         if not config.VOYAGE_API_KEY:
-            raise RuntimeError("Thiếu VOYAGE_API_KEY — hoặc đặt RERANK_BACKEND=fake/none.")
+            raise RuntimeError("VOYAGE_API_KEY missing — or set RERANK_BACKEND=fake/none.")
         self.client = voyageai.Client(api_key=config.VOYAGE_API_KEY)
 
     def rerank(self, query: str, candidates: list[dict], top_k: int) -> list[dict]:
@@ -44,7 +44,7 @@ class VoyageReranker:
 
 
 class NoopReranker:
-    """Không re-rank — giữ thứ tự hiện có, chỉ cắt top-k (để đo baseline)."""
+    """No re-ranking — keep the current order, just cut top-k (for baselines)."""
 
     def rerank(self, query: str, candidates: list[dict], top_k: int) -> list[dict]:
         return candidates[:top_k]
@@ -58,4 +58,4 @@ def get_reranker():
         return NoopReranker()
     if backend == "voyage":
         return VoyageReranker()
-    raise ValueError(f"RERANK_BACKEND không hợp lệ: {backend!r} (voyage | fake | none)")
+    raise ValueError(f"Invalid RERANK_BACKEND: {backend!r} (voyage | fake | none)")

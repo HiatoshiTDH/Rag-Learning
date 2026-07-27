@@ -1,4 +1,4 @@
-"""Test offline cho task 1.2 (parse TEI) + 1.3 (chunking) — dùng fixture, không cần GROBID."""
+"""Offline tests for task 1.2 (TEI parsing) + 1.3 (chunking) — fixture-based, no GROBID needed."""
 
 from pathlib import Path
 
@@ -27,7 +27,7 @@ def test_parse_tei_sections_exclude_back():
     paper = _paper()
     titles = [s.title for s in paper.sections]
     assert titles == ["1. Introduction", "2. Related Work", "3. Method"]
-    # References nằm trong <back> — không được lọt vào sections
+    # References live in <back> — they must not leak into sections
     assert not any("cited paper" in p for s in paper.sections for p in s.paragraphs)
 
 
@@ -49,11 +49,11 @@ def test_section_types_normalized():
 def test_long_paragraph_split_by_sentence():
     chunks = chunk_paper(_paper())
     method = [c for c in chunks if c.section_type == "method"]
-    # Đoạn dài ~1500 token phải bị cắt thành >=2 chunk, cộng đoạn ngắn thứ hai
+    # The ~1500-token paragraph must split into >=2 chunks, plus the second short paragraph
     assert len(method) >= 3
     for c in method:
-        assert len(c.text) // 4 <= config.MAX_CHUNK_TOKENS + 50  # nới nhẹ vì cắt theo câu
-    # Không cắt giữa câu: mỗi chunk kết thúc bằng dấu câu
+        assert len(c.text) // 4 <= config.MAX_CHUNK_TOKENS + 50  # slight slack for sentence splits
+    # No mid-sentence cuts: every chunk ends with punctuation
     assert all(c.text.rstrip()[-1] in ".!?" for c in method)
 
 

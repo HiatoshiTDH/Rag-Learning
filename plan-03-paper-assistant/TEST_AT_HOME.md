@@ -1,10 +1,10 @@
-# Bài test tổng thể khi về máy nhà
+# Full verification on your home machine
 
-Toàn bộ code P1→P5 đã viết xong và pass 26 test offline. Tài liệu này là **thứ tự chạy để verify tổng thể trên máy thật** — làm từ trên xuống, mỗi bước có expected output. Ước lượng: ~30–45 phút (đa số là chờ GROBID parse).
+All P1→P5 code is written and passes 26 offline tests. This document is **the order to run a full verification on a real machine** — work top to bottom; every step has an expected output. Estimate: ~30–45 minutes (mostly waiting for GROBID to parse).
 
-> Đường tắt: `./scripts/smoke_test.sh` tự chạy bước 1→6 và in PASS/FAIL từng mục.
+> Shortcut: `./scripts/smoke_test.sh` runs steps 1→6 automatically and prints PASS/FAIL per item.
 
-## Bước 0 — Clone & cài đặt (một lần)
+## Step 0 — Clone & install (once)
 
 ```bash
 git clone <repo> && cd Rag-Learning/plan-03-paper-assistant
@@ -12,85 +12,85 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Bước 1 — Test offline (không cần docker/key)
+## Step 1 — Offline tests (no docker/keys needed)
 
 ```bash
 EMBED_BACKEND=fake RERANK_BACKEND=fake python -m pytest tests/ -q
 ```
 
-**Expected:** `26 passed`. Fail ở đây = lỗi code/môi trường Python, chưa liên quan gì tới docker hay API.
+**Expected:** `26 passed`. A failure here = a code/Python-environment problem, nothing to do with docker or the API yet.
 
-## Bước 2 — Dựng services
+## Step 2 — Bring up the services
 
 ```bash
 docker compose up -d
-curl http://localhost:8070/api/isalive     # → true (GROBID cần ~30-60s khởi động lần đầu)
+curl http://localhost:8070/api/isalive     # → true (GROBID needs ~30-60s on first start)
 ```
 
-Mở http://localhost:6333/dashboard — thấy UI Qdrant là OK.
+Open http://localhost:6333/dashboard — seeing the Qdrant UI means it's OK.
 
-## Bước 3 — Điền cấu hình
+## Step 3 — Fill in the configuration
 
 ```bash
 cp .env.example .env
-# Điền: ANTHROPIC_API_KEY (console.anthropic.com), VOYAGE_API_KEY (dash.voyageai.com)
+# Fill in: ANTHROPIC_API_KEY (console.anthropic.com), VOYAGE_API_KEY (dash.voyageai.com)
 python -c "from src.embedding import get_embedder; get_embedder(); print('Voyage OK')"
 ```
 
-**Expected:** `Voyage OK`. Nếu muốn thử không tốn tiền embedding trước: `EMBED_BACKEND=fake` (nhưng kết quả search sẽ vô nghĩa về ngữ nghĩa — chỉ để kiểm tra pipeline chạy thông).
+**Expected:** `Voyage OK`. To try things first without paying for embeddings: `EMBED_BACKEND=fake` (but search results will be semantically meaningless — only for checking the pipeline runs end to end).
 
-## Bước 4 — Ingest thật (P1 live)
+## Step 4 — Real ingest (P1 live)
 
-Thêm 2–3 arXiv id vào `data/seed_papers.txt` (bắt đầu ít để nhanh), rồi:
+Add 2–3 arXiv ids to `data/seed_papers.txt` (start small so it's fast), then:
 
 ```bash
 python -m src.cli ingest
 ```
 
-**Expected:** mỗi paper một dòng `  <id>: N section, M chunk`, kết thúc `Xong: ... chunk. Lỗi: không`.
-Kiểm tra chéo:
-- `python -m src.cli list` → ra danh sách paper
-- Qdrant dashboard → collection `papers` → soi vài point: payload phải có `section`, `section_type` đúng
-- Chạy lại `python -m src.cli ingest` lần 2 → **số chunk không tăng** (idempotent)
+**Expected:** one line per paper `  <id>: N sections, M chunks`, ending with `Done: ... chunks. Errors: none`.
+Cross-checks:
+- `python -m src.cli list` → shows the paper list
+- Qdrant dashboard → collection `papers` → inspect a few points: payload must have correct `section`, `section_type`
+- Run `python -m src.cli ingest` a second time → **chunk count does not grow** (idempotent)
 
-## Bước 5 — Hỏi thật (P2–P4 live)
+## Step 5 — Real questions (P2–P4 live)
 
 ```bash
-# Câu hỏi thường (router tự xử lý)
-python -m src.cli ask "Paper <id> giải quyết vấn đề gì?"
+# Ordinary question (the router handles it)
+python -m src.cli ask "What problem does paper <id> solve?"
 
-# Giới hạn section
-python -m src.cli ask "phương pháp chính là gì?" --paper <id> --section-type method
+# Restrict to a section
+python -m src.cli ask "what is the main method?" --paper <id> --section-type method
 
-# So sánh (cần >=2 paper đã ingest)
-python -m src.cli compare "hai paper này khác nhau thế nào về cách đánh giá?" <id1> <id2>
+# Comparison (needs >=2 ingested papers)
+python -m src.cli compare "how do these two papers differ in their evaluation?" <id1> <id2>
 ```
 
-**Expected:** câu trả lời + mục `Nguồn:` liệt kê `[n] Tên paper — Tên section`. Câu trả lời **không có citation nào** với câu hỏi nội dung = có vấn đề, xem Troubleshooting.
+**Expected:** an answer + a `Sources:` section listing `[n] Paper title — Section name`. An answer **with no citations at all** for a content question = something's wrong, see Troubleshooting.
 
-**Chi phí bước này:** vài cent (opus-5). Muốn rẻ khi thử đi thử lại: thêm `--no-expand` và/hoặc `ANSWER_MODEL=claude-sonnet-5` trong `.env`.
+**Cost of this step:** a few cents (opus-5). To keep repeat runs cheap: add `--no-expand` and/or set `ANSWER_MODEL=claude-sonnet-5` in `.env`.
 
-## Bước 6 — Golden set + đo baseline (P2.3–2.4)
+## Step 6 — Golden set + baseline measurement (P2.3–2.4)
 
 ```bash
 cp data/golden_set.example.jsonl data/golden_set.jsonl
-# Sửa thành 10-30 câu thật trên paper BẠN đã đọc (tăng dần, 10 câu là đủ để bắt đầu)
+# Edit into 10-30 real questions on papers YOU have read (grow gradually; 10 is enough to start)
 
-python -m src.cli eval --stage v1     --note "baseline vector thuần"
+python -m src.cli eval --stage v1     --note "baseline pure vector"
 python -m src.cli eval --stage hybrid --note "+BM25/RRF"
 python -m src.cli eval --stage rerank --note "+voyage rerank"
 python -m src.cli eval --stage full   --note "+expansion"
 ```
 
-**Expected:** 4 dòng mới trong `EXPERIMENTS.md`, recall tăng dần (hoặc ít nhất không giảm) qua từng stage. Đây chính là task 3.5 — từ giờ mọi thay đổi đều so với các con số này.
+**Expected:** 4 new rows in `EXPERIMENTS.md`, recall rising (or at least not falling) across stages. This is task 3.5 — from now on every change is compared against these numbers.
 
-## Bước 7 — (Tùy chọn) Auto-ingest hằng tuần (P5.2)
+## Step 7 — (Optional) Weekly auto-ingest (P5.2)
 
 ```bash
-# Bỏ comment/thêm keyword vào data/watch_keywords.txt rồi:
+# Uncomment/add keywords in data/watch_keywords.txt then:
 python -m src.cli watch
 
-# Cron mỗi thứ 2, 8h sáng:
+# Cron every Monday at 8am:
 # 0 8 * * 1  cd /path/to/plan-03-paper-assistant && .venv/bin/python -m src.cli watch >> watch.log 2>&1
 ```
 
@@ -98,26 +98,26 @@ python -m src.cli watch
 
 ## Troubleshooting
 
-| Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
-|-------------|------------------------|------------|
-| GROBID 503 / connection refused | Chưa khởi động xong (lần đầu tải model ~30-60s) | Chờ rồi `curl .../api/isalive` lại |
-| GROBID lỗi với 1 paper cụ thể | PDF layout lạ/scan | Bỏ paper đó ra khỏi seed — đúng dự kiến trong PLAN (rủi ro #1) |
-| Qdrant lỗi dimension mismatch | Đổi `EMBED_BACKEND` (fake 256 chiều ↔ voyage 1024 chiều) | Xóa collection: `docker compose down && docker volume rm plan-03-paper-assistant_qdrant_storage` (hoặc xóa `data/qdrant/` nếu dùng embedded) rồi ingest lại |
-| `anthropic.AuthenticationError` | Key sai/thiếu trong `.env` | Kiểm tra `.env`, nhớ `source .venv/bin/activate` đúng thư mục |
-| Voyage 401 | Như trên với `VOYAGE_API_KEY` | — |
-| Trả lời không có citation | Câu hỏi ngoài phạm vi kho paper (đúng hành vi: model phải nói "không đề cập") hoặc retrieval trượt | Thử `ask --paper <id>` để khoanh vùng; nếu vẫn trượt → thêm case vào golden set và debug bằng `eval` |
-| Hỏi tiếng Việt kết quả kém hơn hẳn tiếng Anh | Expansion chưa chạy (dùng `--no-expand`?) | Bỏ `--no-expand` — bản dịch EN nằm trong expansion |
-| `Golden set trống` khi eval | Chưa copy example thành `golden_set.jsonl` | Bước 6 |
+| Symptom | Common cause | Fix |
+|---------|--------------|-----|
+| GROBID 503 / connection refused | Not finished starting (first run downloads models, ~30-60s) | Wait, then `curl .../api/isalive` again |
+| GROBID fails on one specific paper | Unusual/scanned PDF layout | Drop that paper from the seed — expected per PLAN (risk #1) |
+| Qdrant dimension mismatch error | Switched `EMBED_BACKEND` (fake 256 dims ↔ voyage 1024 dims) | Delete the collection: `docker compose down && docker volume rm plan-03-paper-assistant_qdrant_storage` (or delete `data/qdrant/` if embedded) then re-ingest |
+| `anthropic.AuthenticationError` | Wrong/missing key in `.env` | Check `.env`; make sure `source .venv/bin/activate` ran in the right directory |
+| Voyage 401 | Same as above for `VOYAGE_API_KEY` | — |
+| Answers without citations | Question outside the paper corpus (correct behavior: the model must say "not covered") or retrieval missed | Try `ask --paper <id>` to narrow down; if it still misses → add the case to the golden set and debug with `eval` |
+| Vietnamese questions much worse than English | Expansion didn't run (using `--no-expand`?) | Drop `--no-expand` — the English translation lives in expansion |
+| `Golden set empty` during eval | Example not copied to `golden_set.jsonl` | Step 6 |
 
-## Map sang PLAN.md
+## Mapping to PLAN.md
 
-| Bước ở trên | Phase trong PLAN | Sau bước này phase được coi là |
-|-------------|------------------|--------------------------------|
-| 1 | (kiểm tra code) | — |
-| 2–3 | P0 | ✅ hoàn tất |
-| 4 | P1 | ✅ hoàn tất (phần live còn thiếu) |
-| 5 | P2.2/2.5, P3, P4 | ✅ hoàn tất phần code; chất lượng tune tiếp bằng bước 6 |
-| 6 | P2.3–2.4 + P3.5 | ✅ baseline có số |
-| 7 | P5.2 | ✅ hoàn tất |
+| Step above | Phase in PLAN | After this step the phase counts as |
+|------------|---------------|--------------------------------------|
+| 1 | (code check) | — |
+| 2–3 | P0 | ✅ complete |
+| 4 | P1 | ✅ complete (the missing live part) |
+| 5 | P2.2/2.5, P3, P4 | ✅ code complete; quality tuned further via step 6 |
+| 6 | P2.3–2.4 + P3.5 | ✅ baseline with numbers |
+| 7 | P5.2 | ✅ complete |
 
-Sau khi cả 7 bước pass: dự án ở trạng thái "dùng thật hằng ngày được" — việc còn lại là mở rộng golden set và tune theo số liệu.
+After all 7 steps pass: the project is in "daily real use" shape — what remains is growing the golden set and tuning by the numbers.

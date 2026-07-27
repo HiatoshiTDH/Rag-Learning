@@ -1,7 +1,8 @@
-"""Embedder interface + 2 backend: Voyage AI (thật) và Hash (test/offline).
+"""Embedder interface + 2 backends: Voyage AI (real) and Hash (test/offline).
 
-Đổi backend qua env EMBED_BACKEND (voyage | fake). Lưu ý: đổi backend là đổi
-số chiều vector -> phải xóa data/qdrant và để service index lại từ SQLite.
+Switch backends via the EMBED_BACKEND env var (voyage | fake). Note: changing
+the backend changes the vector dimension -> delete data/qdrant and let the
+service re-index.
 """
 
 import hashlib
@@ -19,10 +20,10 @@ class Embedder(Protocol):
 
 
 class HashEmbedder:
-    """Bag-of-words hashing, deterministic — cho test và dev offline.
+    """Bag-of-words hashing, deterministic — for tests and offline dev.
 
-    Không có ngữ nghĩa thật (chỉ trùng từ mới match), tuyệt đối không dùng
-    để đánh giá chất lượng retrieval.
+    No real semantics (only shared tokens match); never use it to evaluate
+    retrieval quality.
     """
 
     def __init__(self, dim: int = 256):
@@ -44,7 +45,7 @@ class HashEmbedder:
 
 
 class VoyageEmbedder:
-    """voyage-3: đa ngôn ngữ (quan trọng — ký ức ghi tiếng Việt), 1024 chiều."""
+    """voyage-3: multilingual (matters if memories are written in any language), 1024 dims."""
 
     MODEL = "voyage-3"
 
@@ -53,7 +54,7 @@ class VoyageEmbedder:
 
         if not config.VOYAGE_API_KEY:
             raise RuntimeError(
-                "Thiếu VOYAGE_API_KEY trong .env — hoặc đặt EMBED_BACKEND=fake để dev offline."
+                "VOYAGE_API_KEY missing from .env — or set EMBED_BACKEND=fake for offline dev."
             )
         self.client = voyageai.Client(api_key=config.VOYAGE_API_KEY)
         self.dim = 1024

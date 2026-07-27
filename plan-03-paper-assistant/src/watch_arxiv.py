@@ -1,13 +1,13 @@
-"""P5 (5.2) — Auto-ingest: quét arXiv theo keyword, chỉ ingest paper CHƯA có.
+"""P5 (5.2) — Auto-ingest: scan arXiv by keyword, ingest only papers NOT yet indexed.
 
-Keyword khai báo trong data/watch_keywords.txt, mỗi dòng:
+Keywords are declared in data/watch_keywords.txt, one per line:
     <keyword> [| category]
-Ví dụ:
+Examples:
     exoskeleton control | cs.RO
     retrieval augmented generation
 
-Chạy tay:  python -m src.cli watch
-Cron tuần: 0 8 * * 1  cd /path/to/plan-03-paper-assistant && .venv/bin/python -m src.cli watch
+Manual run:  python -m src.cli watch
+Weekly cron: 0 8 * * 1  cd /path/to/plan-03-paper-assistant && .venv/bin/python -m src.cli watch
 """
 
 from src import config
@@ -53,7 +53,7 @@ def search_ids(keyword: str, category: str, max_results: int = 10) -> list[str]:
 def main() -> None:
     entries = read_watch_file()
     if not entries:
-        raise SystemExit(f"Chưa có keyword nào trong {config.WATCH_FILE} — xem docstring file này.")
+        raise SystemExit(f"No keywords in {config.WATCH_FILE} yet — see this file's docstring.")
 
     existing = {p["paper_id"] for p in list_papers()}
     embedder, client = get_embedder(), get_qdrant()
@@ -63,16 +63,16 @@ def main() -> None:
         found = search_ids(keyword, category)
         fresh = [pid for pid in found if pid not in existing]
         print(f'"{keyword}"{f" [{category}]" if category else ""}: '
-              f"{len(found)} kết quả, {len(fresh)} mới")
+              f"{len(found)} results, {len(fresh)} new")
         for pid in fresh:
             try:
                 ingest_one(pid, embedder, client)
                 existing.add(pid)
                 new_count += 1
             except Exception as e:
-                print(f"  {pid}: LỖI — {e}")
+                print(f"  {pid}: ERROR — {e}")
 
-    print(f"\nIngest thêm {new_count} paper mới.")
+    print(f"\nIngested {new_count} new papers.")
 
 
 if __name__ == "__main__":

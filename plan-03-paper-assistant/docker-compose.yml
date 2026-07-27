@@ -3,7 +3,7 @@ services:
     image: lfoppiano/grobid:0.8.0
     ports:
       - "8070:8070"
-    # GROBID cần ~4GB RAM khi parse; init để shutdown sạch
+    # GROBID needs ~4GB RAM while parsing; init for clean shutdown
     init: true
 
   qdrant:

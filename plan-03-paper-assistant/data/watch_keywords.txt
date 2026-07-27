@@ -1,5 +1,5 @@
-# Keyword để watch_arxiv quét hằng tuần — mỗi dòng: <keyword> [| category]
-# Ví dụ (sửa theo hướng nghiên cứu của bạn):
+# Keywords for the weekly watch_arxiv scan — one per line: <keyword> [| category]
+# Examples (edit to match your research direction):
 # exoskeleton control | cs.RO
 # human augmentation
 # retrieval augmented generation | cs.CL

@@ -1,8 +1,9 @@
-"""Tuần 4 — Trạng thái quan hệ NPC ↔ người chơi (đứng sau hành vi B2).
+"""Week 4 — NPC ↔ player relationship state (the mechanism behind B2).
 
-Affinity là số nguyên cộng dồn từ sự kiện gameplay (bảng delta cứng —
-KHÔNG để LLM quyết): người chơi trộm đồ -> NPC lạnh nhạt, đòi giá cao hơn.
-Nhãn quan hệ đưa vào prompt thoại + chọn câu canned fallback.
+Affinity is an integer accumulated from gameplay events (a hard-coded delta
+table — the LLM does NOT decide): the player steals -> the NPC turns cold and
+charges more. The relationship label goes into the dialogue prompt and picks
+the canned fallback line.
 """
 
 import sqlite3
@@ -10,7 +11,7 @@ from pathlib import Path
 
 from src import config
 
-# Sự kiện -> thay đổi affinity. Cùng key "kind" với scoring.FIXED_IMPORTANCE.
+# Event -> affinity change. Same "kind" keys as scoring.FIXED_IMPORTANCE.
 AFFINITY_DELTAS = {
     "player_attack_npc": -6,
     "player_theft": -5,
@@ -21,7 +22,7 @@ AFFINITY_DELTAS = {
     "player_greeting": 0,
 }
 
-# (ngưỡng dưới, nhãn) — duyệt từ trên xuống, lấy nhãn đầu tiên affinity >= ngưỡng
+# (lower threshold, label) — scan top-down, take the first label with affinity >= threshold
 _LABELS = [
     (6, "trusted"),
     (2, "warm"),
@@ -38,8 +39,8 @@ def label(affinity: int) -> str:
     return "hostile"
 
 
-# Hệ số giá theo quan hệ — game server dùng khi validate adjust_price (B2:
-# người chơi từng trộm đồ thì NPC đòi giá cao hơn)
+# Price multiplier by relationship — the game server uses this when validating
+# adjust_price (B2: a player who stole gets charged more)
 PRICE_MULTIPLIER = {
     "trusted": 0.9,
     "warm": 0.95,
@@ -50,7 +51,7 @@ PRICE_MULTIPLIER = {
 
 
 class RelationshipTracker:
-    """Bảng (npc_id, player_id) -> affinity, chung file SQLite với MemoryStore."""
+    """(npc_id, player_id) -> affinity table, sharing the MemoryStore SQLite file."""
 
     def __init__(self, db_path: Path | None = None):
         path = Path(db_path or config.SQLITE_PATH)
@@ -66,7 +67,7 @@ class RelationshipTracker:
         self.conn.commit()
 
     def apply_event(self, npc_id: str, player_id: str, kind: str) -> int:
-        """Cộng delta của sự kiện, trả về affinity mới."""
+        """Apply the event's delta, return the new affinity."""
         delta = AFFINITY_DELTAS.get(kind, 0)
         with self.conn:
             self.conn.execute(

@@ -1,86 +1,86 @@
-# Plan 3 — Những thứ cần chuẩn bị (SETUP)
+# Plan 3 — What to prepare (SETUP)
 
-Mọi thứ cần có trước khi bắt đầu P1 trong [PLAN.md](PLAN.md). Làm xong hết phần này = xong Phase 0.
+Everything needed before starting P1 in [PLAN.md](PLAN.md). Finishing this section = Phase 0 done.
 
-## 1. Phần mềm trên máy
+## 1. Software on your machine
 
-| Thứ | Phiên bản | Ghi chú |
-|-----|-----------|---------|
-| Python | 3.11+ | dùng venv |
-| Docker + Docker Compose | mới nhất | chạy GROBID và Qdrant |
+| Item | Version | Notes |
+|------|---------|-------|
+| Python | 3.11+ | use a venv |
+| Docker + Docker Compose | latest | runs GROBID and Qdrant |
 | Git | — | — |
-| RAM trống | ~5 GB | GROBID ngốn ~4 GB khi parse |
+| Free RAM | ~5 GB | GROBID eats ~4 GB while parsing |
 
-## 2. Services local (docker compose)
+## 2. Local services (docker compose)
 
-Đã có sẵn [`docker-compose.yml`](docker-compose.yml) trong folder này:
+A [`docker-compose.yml`](docker-compose.yml) is already in this folder:
 
 ```bash
 docker compose up -d
 
 # Sanity check
 curl http://localhost:8070/api/isalive     # GROBID → true
-# Qdrant dashboard: mở http://localhost:6333/dashboard
+# Qdrant dashboard: open http://localhost:6333/dashboard
 ```
 
-| Service | Port | Vai trò |
-|---------|------|---------|
-| GROBID | 8070 | Parse PDF học thuật → TEI XML |
-| Qdrant | 6333 (HTTP) / 6334 (gRPC) | Vector DB, data lưu ở volume `qdrant_storage` |
+| Service | Port | Role |
+|---------|------|------|
+| GROBID | 8070 | Parses academic PDFs → TEI XML |
+| Qdrant | 6333 (HTTP) / 6334 (gRPC) | Vector DB, data stored in the `qdrant_storage` volume |
 
 ## 3. API keys
 
-Copy [`.env.example`](.env.example) thành `.env` rồi điền:
+Copy [`.env.example`](.env.example) to `.env` and fill in:
 
-| Key | Lấy ở đâu | Dùng cho |
-|-----|-----------|----------|
-| `ANTHROPIC_API_KEY` | console.anthropic.com → API Keys | Generation (trả lời + citations), query expansion |
+| Key | Where to get it | Used for |
+|-----|-----------------|----------|
+| `ANTHROPIC_API_KEY` | console.anthropic.com → API Keys | Generation (answers + citations), query expansion |
 | `VOYAGE_API_KEY` | dash.voyageai.com | Embedding (`voyage-3`) + re-rank (`voyage-rerank-2`) |
 
-### Phương án local-free (không cần Voyage)
+### Local-free option (no Voyage needed)
 
-Nếu muốn tránh chi phí embedding hoặc muốn dữ liệu không rời máy:
+If you want to avoid embedding costs or keep data on your machine:
 
-- Embedding: `bge-m3` qua `sentence-transformers` (mạnh cho đa ngôn ngữ Việt/Nhật/Anh)
+- Embedding: `bge-m3` via `sentence-transformers` (strong for Vietnamese/Japanese/English multilingual)
 - Re-rank: `bge-reranker-v2-m3`
-- Cần thêm: `pip install sentence-transformers` (+ GPU thì nhanh, CPU vẫn chạy được với 10–100 paper)
-- Đánh đổi: chậm hơn khi index lớn, chất lượng nhỉnh hơn/kém hơn tùy domain — golden set (P2) sẽ cho câu trả lời khách quan
+- Extra install: `pip install sentence-transformers` (+ GPU is faster; CPU still works for 10–100 papers)
+- Trade-off: slower on large indexes; quality is better/worse depending on domain — the golden set (P2) gives the objective answer
 
-Vẫn cần `ANTHROPIC_API_KEY` cho phần generation.
+You still need `ANTHROPIC_API_KEY` for generation.
 
-## 4. Dữ liệu khởi đầu
+## 4. Seed data
 
-- **10 paper bạn đã đọc kỹ**, cùng hướng nghiên cứu (robotics / human augmentation / SRL...).
-  - Vì sao phải là paper đã đọc kỹ: golden set ở P2 cần bạn biết đáp án đúng nằm ở paper nào, section nào.
-- Ghi list arXiv id vào một file text (VD `data/seed_papers.txt`) — script 1.1 sẽ đọc từ đây.
+- **10 papers you have read carefully**, in your research direction (robotics / human augmentation / SRL...).
+  - Why carefully-read papers: the P2 golden set requires you to know which paper and which section holds the right answer.
+- Put the arXiv ids in a text file (e.g. `data/seed_papers.txt`) — script 1.1 reads from it.
 
-## 5. Chi phí ước lượng
+## 5. Estimated costs
 
-> Giá tham khảo thời điểm viết — kiểm tra lại trang giá của từng nhà cung cấp trước khi chạy lớn.
+> Reference prices at the time of writing — re-check each provider's pricing page before large runs.
 
-| Khoản | Ước lượng | Ghi chú |
-|-------|-----------|---------|
-| Embedding 100 paper (~1.5M token) | < $0.5 | voyage-3; chỉ tốn 1 lần khi index. Bản local-free: $0 |
-| Re-rank | không đáng kể | tính theo token cặp query-document |
-| 1 câu hỏi thường (6–8 section context, ~15K token in) | ~$0.08–0.15 | claude-opus-5 ($5/M in, $25/M out) |
-| 1 câu so sánh multi-paper (map-reduce) | ~$0.3–0.5 | nhiều call hơn |
-| **Cả tháng dùng cá nhân (~10 câu/ngày)** | **~$25–45** | giảm mạnh nếu bật prompt caching + dùng sonnet-5 cho câu đơn giản |
+| Item | Estimate | Notes |
+|------|----------|-------|
+| Embedding 100 papers (~1.5M tokens) | < $0.5 | voyage-3; one-time cost at indexing. Local-free option: $0 |
+| Re-rank | negligible | billed per query-document token pair |
+| 1 ordinary question (6–8 section context, ~15K tokens in) | ~$0.08–0.15 | claude-opus-5 ($5/M in, $25/M out) |
+| 1 multi-paper comparison (map-reduce) | ~$0.3–0.5 | more calls |
+| **A month of personal use (~10 questions/day)** | **~$25–45** | drops sharply with prompt caching + sonnet-5 for simple questions |
 
-Mẹo giảm chi phí khi dev: làm việc trên bộ 10 paper, bật prompt caching sớm (task 5.3 có thể kéo lên làm ngay ở P2 nếu muốn), dùng `claude-sonnet-5` ($3/$15) hoặc `claude-haiku-4-5` ($1/$5) khi thử pipeline — chỉ chuyển opus khi đánh giá chất lượng thật.
+Cost-saving tips while developing: work on the 10-paper set, enable prompt caching early (task 5.3 can be pulled forward into P2 if you like), use `claude-sonnet-5` ($3/$15) or `claude-haiku-4-5` ($1/$5) while trying out the pipeline — only switch to opus when evaluating real quality.
 
-## 6. Thứ tự khởi động lại từ đầu (mỗi phiên làm việc)
+## 6. Restart order (each work session)
 
 ```bash
 cd plan-03-paper-assistant
 docker compose up -d          # GROBID + Qdrant
 source .venv/bin/activate
-# làm việc theo task đang mở trong PLAN.md
+# work on the open task in PLAN.md
 ```
 
-## 7. Checklist Phase 0 hoàn tất
+## 7. Phase 0 completion checklist
 
-- [ ] `docker compose up -d` chạy, 2 sanity check pass
-- [ ] `.env` điền xong, `python -c "import anthropic, voyageai"` không lỗi
-- [ ] Đã quyết định: Voyage hay local-free (ghi vào decision log trong PLAN.md nếu đổi)
-- [ ] `data/seed_papers.txt` có 10 arXiv id
-- [ ] Đọc mục 6 (bẫy đã biết) trong [README.md](README.md) một lần
+- [ ] `docker compose up -d` running, both sanity checks pass
+- [ ] `.env` filled in, `python -c "import anthropic, voyageai"` runs without error
+- [ ] Decided: Voyage or local-free (record in the PLAN.md decision log if changed)
+- [ ] `data/seed_papers.txt` has 10 arXiv ids
+- [ ] Read section 6 (known traps) in [README.md](README.md) once
