@@ -69,9 +69,37 @@ class VoyageEmbedder:
         return self.client.embed([text], model=self.MODEL, input_type="query").embeddings[0]
 
 
+class LocalEmbedder:
+    """bge-m3 chạy local qua sentence-transformers — $0, đa ngôn ngữ Việt/Nhật/Anh tốt.
+
+    Lần đầu sẽ tải model ~2.3GB về ~/.cache/huggingface. CPU chạy được
+    (chậm hơn), GPU thì nhanh. Cần: pip install sentence-transformers
+    """
+
+    MODEL = "BAAI/bge-m3"
+
+    def __init__(self):
+        try:
+            from sentence_transformers import SentenceTransformer
+        except ImportError as e:
+            raise RuntimeError(
+                "EMBED_BACKEND=local cần sentence-transformers: pip install sentence-transformers"
+            ) from e
+        self.model = SentenceTransformer(self.MODEL)
+        self.dim = self.model.get_sentence_embedding_dimension()  # 1024
+
+    def embed_docs(self, texts: list[str]) -> list[list[float]]:
+        return self.model.encode(texts, normalize_embeddings=True, show_progress_bar=False).tolist()
+
+    def embed_query(self, text: str) -> list[float]:
+        return self.model.encode([text], normalize_embeddings=True)[0].tolist()
+
+
 def get_embedder() -> Embedder:
     if config.EMBED_BACKEND == "fake":
         return HashEmbedder()
     if config.EMBED_BACKEND == "voyage":
         return VoyageEmbedder()
-    raise ValueError(f"EMBED_BACKEND không hợp lệ: {config.EMBED_BACKEND!r} (voyage | fake)")
+    if config.EMBED_BACKEND == "local":
+        return LocalEmbedder()
+    raise ValueError(f"EMBED_BACKEND không hợp lệ: {config.EMBED_BACKEND!r} (voyage | local | fake)")

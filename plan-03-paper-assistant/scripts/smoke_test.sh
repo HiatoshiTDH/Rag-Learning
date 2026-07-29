@@ -35,16 +35,24 @@ fi
 echo "== 3. Cấu hình =="
 if [ -f .env ]; then
   ok ".env tồn tại"
-  grep -q "ANTHROPIC_API_KEY=sk" .env && ok "ANTHROPIC_API_KEY đã điền" || warn "ANTHROPIC_API_KEY chưa điền — bước ask sẽ fail"
+  if grep -qE "^LLM_BACKEND=openai_compat" .env; then
+    ok "LLM_BACKEND=openai_compat (local/free — nhớ chạy Ollama/endpoint trước khi ask)"
+  else
+    grep -q "ANTHROPIC_API_KEY=sk" .env && ok "ANTHROPIC_API_KEY đã điền" || warn "ANTHROPIC_API_KEY chưa điền — bước ask sẽ fail"
+  fi
   if grep -qE "^EMBED_BACKEND=fake" .env; then
     warn "EMBED_BACKEND=fake — pipeline chạy được nhưng search vô nghĩa về ngữ nghĩa"
+  elif grep -qE "^EMBED_BACKEND=local" .env; then
+    python -c "import sentence_transformers" 2>/dev/null \
+      && ok "EMBED_BACKEND=local (bge-m3, \$0)" \
+      || fail "EMBED_BACKEND=local nhưng thiếu: pip install sentence-transformers"
   elif grep -q "VOYAGE_API_KEY=pa" .env; then
     ok "VOYAGE_API_KEY đã điền"
   else
-    warn "VOYAGE_API_KEY chưa điền (hoặc đặt EMBED_BACKEND=fake để thử)"
+    warn "VOYAGE_API_KEY chưa điền (hoặc EMBED_BACKEND=local/fake — xem SETUP.md 3b)"
   fi
 else
-  fail ".env chưa có — cp .env.example .env rồi điền key"
+  fail ".env chưa có — cp .env.example .env rồi điền theo SETUP.md mục 3b"
 fi
 
 echo "== 4. Seed papers =="

@@ -37,16 +37,34 @@ Copy [`.env.example`](.env.example) thành `.env` rồi điền:
 | `ANTHROPIC_API_KEY` | console.anthropic.com → API Keys | Generation (trả lời + citations), query expansion |
 | `VOYAGE_API_KEY` | dash.voyageai.com | Embedding (`voyage-3`) + re-rank (`voyage-rerank-2`) |
 
-### Phương án local-free (không cần Voyage)
+### 3b. Phương án local / free API — chọn tổ hợp trong `.env`
 
-Nếu muốn tránh chi phí embedding hoặc muốn dữ liệu không rời máy:
+Cả 3 tầng đều có backend thay thế đã code sẵn. Ba tổ hợp khuyên dùng:
 
-- Embedding: `bge-m3` qua `sentence-transformers` (mạnh cho đa ngôn ngữ Việt/Nhật/Anh)
-- Re-rank: `bge-reranker-v2-m3`
-- Cần thêm: `pip install sentence-transformers` (+ GPU thì nhanh, CPU vẫn chạy được với 10–100 paper)
-- Đánh đổi: chậm hơn khi index lớn, chất lượng nhỉnh hơn/kém hơn tùy domain — golden set (P2) sẽ cho câu trả lời khách quan
+| Tổ hợp | `.env` | Chi phí | Chất lượng |
+|--------|--------|---------|------------|
+| **A. Chất lượng cao** (mặc định) | `EMBED_BACKEND=voyage`, `RERANK_BACKEND=voyage`, `LLM_BACKEND=anthropic` | ~$25-45/tháng | Tốt nhất, citations có cấu trúc |
+| **B. Hybrid tiết kiệm** | `EMBED_BACKEND=local`, `RERANK_BACKEND=local`, `LLM_BACKEND=anthropic` | chỉ trả tiền generation | Retrieval gần như không mất gì — **khuyên dùng khi bắt đầu** |
+| **C. $0 toàn phần** | như B + `LLM_BACKEND=openai_compat` | $0 | Retrieval tốt; câu trả lời phụ thuộc model local/free — đủ để học RAG, yếu hơn rõ khi tổng hợp/so sánh nhiều paper |
 
-Vẫn cần `ANTHROPIC_API_KEY` cho phần generation.
+**Backend `local` (tổ hợp B, C):** `bge-m3` (embedding) + `bge-reranker-v2-m3` (rerank) qua sentence-transformers — đa ngôn ngữ Việt/Nhật/Anh tốt, chạy được trên CPU với 10–100 paper (GPU thì nhanh). Lần đầu tải ~2.3GB model/cái về `~/.cache/huggingface`:
+
+```bash
+pip install sentence-transformers
+```
+
+**Backend `openai_compat` (tổ hợp C):** một endpoint chuẩn OpenAI cho mọi call LLM. Các lựa chọn (giá/giới hạn thay đổi — kiểm tra lại trang của họ):
+
+| Nguồn | `.env` | Ghi chú |
+|-------|--------|---------|
+| **Ollama** (local, $0) | `OPENAI_COMPAT_BASE_URL=http://localhost:11434/v1`<br>`OPENAI_COMPAT_API_KEY=ollama`<br>`OPENAI_COMPAT_MODEL=qwen2.5:14b` | `ollama pull qwen2.5:14b` trước. 14B cần ~10GB RAM/VRAM (Q4); máy yếu dùng `qwen2.5:7b` (~5GB). Qwen mạnh tiếng Việt hơn Llama cùng cỡ |
+| **Groq** (free tier) | `OPENAI_COMPAT_BASE_URL=https://api.groq.com/openai/v1`<br>`OPENAI_COMPAT_API_KEY=gsk_...`<br>`OPENAI_COMPAT_MODEL=llama-3.3-70b-versatile` | Nhanh, 70B free — chất lượng khá; rate limit theo phút |
+| **Gemini** (free tier) | `OPENAI_COMPAT_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/`<br>`OPENAI_COMPAT_API_KEY=<key AI Studio>`<br>`OPENAI_COMPAT_MODEL=gemini-2.5-flash` | Free tier rộng rãi; lưu ý free tier có thể dùng data để train — đừng đưa dữ liệu nhạy cảm |
+| **LM Studio** (local, $0) | `OPENAI_COMPAT_BASE_URL=http://localhost:1234/v1` | GUI dễ dùng nếu ngại terminal |
+
+**Trade-off phải biết khi rời Anthropic backend:** citations API là tính năng riêng của Claude. Với `openai_compat`, hệ thống tự chuyển sang **citation qua prompt** (nguồn đánh số [1][2], trích số từ câu trả lời) — hoạt động được nhưng model có thể ghi nhầm số nguồn, và không có `cited_text` chỉ đúng đoạn được trích. Golden set + eval vẫn chạy bình thường vì chúng đo tầng retrieval (không phụ thuộc LLM backend).
+
+**Mẹo thực dụng:** dev/thử nghiệm bằng tổ hợp C, khi cần câu trả lời chất lượng cho nghiên cứu thật thì chỉ cần đổi `LLM_BACKEND=anthropic` — không phải index lại gì cả (embedding vẫn là bge-m3). Chỉ khi đổi `EMBED_BACKEND` mới phải xóa index (dimension khác nhau) và ingest lại.
 
 ## 4. Dữ liệu khởi đầu
 

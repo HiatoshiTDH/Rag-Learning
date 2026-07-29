@@ -88,18 +88,66 @@ def format_answer(result: dict) -> str:
     return out
 
 
+# ---------------------------- generic path (LLM_BACKEND=openai_compat, thuần)
+
+_GENERIC_PROMPT = """Trả lời câu hỏi CHỈ dựa trên các nguồn được đánh số dưới đây.
+Sau mỗi ý lấy từ nguồn nào, ghi số nguồn dạng [1], [2]... Không đủ căn cứ thì nói rõ.
+Trả lời bằng đúng ngôn ngữ của câu hỏi.
+
+{sources}
+
+Câu hỏi: {question}"""
+
+
+def build_generic_prompt(question: str, sections: list[dict]) -> str:
+    """Citation qua prompt — cho model không có citations API (Ollama/Groq/Gemini...).
+
+    Kém tin cậy hơn citations API của Claude (model có thể ghi nhầm số) —
+    đó là trade-off đã chấp nhận khi chạy local/free, xem SETUP.md.
+    """
+    sources = "\n\n".join(
+        f'[{i + 1}] {sec["paper_title"]} — {sec["section"]}\n{sec["text"]}'
+        for i, sec in enumerate(sections)
+    )
+    return _GENERIC_PROMPT.format(sources=sources, question=question)
+
+
+def extract_generic_citations(text: str, sections: list[dict]) -> dict:
+    """Gom các [n] model đã ghi trong câu trả lời -> danh mục nguồn tương ứng."""
+    used = sorted({int(m) for m in re.findall(r"\[(\d+)\]", text)})
+    citations = [
+        {"n": n, "title": f'{sections[n - 1]["paper_title"]} — {sections[n - 1]["section"]}'}
+        for n in used
+        if 1 <= n <= len(sections)
+    ]
+    return {"text": text, "citations": citations}
+
+
 # ------------------------------------------------------------ gọi API (2.2)
 
 def answer(question: str, filters: dict | None = None, **retrieve_kwargs) -> dict:
-    """Câu hỏi thường: retrieve -> 1 call Claude với citations."""
-    import anthropic
+    """Câu hỏi thường: retrieve -> 1 call LLM.
 
+    - LLM_BACKEND=anthropic:     citations API (có cấu trúc, tin cậy).
+    - LLM_BACKEND=openai_compat: citation qua prompt đánh số nguồn.
+    """
     sections = retrieve(question, filters=filters, **retrieve_kwargs)
     if not sections:
         return {"text": "Không tìm thấy đoạn nào liên quan trong kho paper.", "citations": []}
-    request = build_answer_request(question, sections)
-    response = anthropic.Anthropic().messages.create(**request)
-    result = extract_answer(response)
+
+    if config.LLM_BACKEND == "openai_compat":
+        from src.llm import complete
+
+        text = complete(build_generic_prompt(question, sections),
+                        model=config.ANSWER_MODEL, max_tokens=2048, system=SYSTEM_PROMPT)
+        result = extract_generic_citations(text, sections)
+    else:
+        import anthropic
+
+        request = build_answer_request(question, sections)
+        response = anthropic.Anthropic().messages.create(**request)
+        result = extract_answer(response)
+
     result["sections"] = sections
     return result
 

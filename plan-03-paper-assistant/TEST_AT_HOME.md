@@ -31,13 +31,19 @@ Mở http://localhost:6333/dashboard — thấy UI Qdrant là OK.
 
 ## Bước 3 — Điền cấu hình
 
+**Chọn tổ hợp backend trước** (chi tiết + bảng so sánh: SETUP.md mục 3b):
+- **A** — chất lượng cao: cần `ANTHROPIC_API_KEY` + `VOYAGE_API_KEY`
+- **B** — hybrid tiết kiệm (khuyên dùng khi bắt đầu): `EMBED_BACKEND=local`, `RERANK_BACKEND=local` + chỉ cần `ANTHROPIC_API_KEY`. Thêm: `pip install sentence-transformers`
+- **C** — $0 toàn phần: như B + `LLM_BACKEND=openai_compat` + Ollama (`ollama pull qwen2.5:14b`)
+
 ```bash
 cp .env.example .env
-# Điền: ANTHROPIC_API_KEY (console.anthropic.com), VOYAGE_API_KEY (dash.voyageai.com)
-python -c "from src.embedding import get_embedder; get_embedder(); print('Voyage OK')"
+# Điền theo tổ hợp đã chọn, rồi kiểm tra embedder:
+python -c "from src.embedding import get_embedder; e = get_embedder(); print(type(e).__name__, e.dim)"
 ```
 
-**Expected:** `Voyage OK`. Nếu muốn thử không tốn tiền embedding trước: `EMBED_BACKEND=fake` (nhưng kết quả search sẽ vô nghĩa về ngữ nghĩa — chỉ để kiểm tra pipeline chạy thông).
+**Expected:** `VoyageEmbedder 1024` (A) hoặc `LocalEmbedder 1024` (B/C — lần đầu tải model ~2.3GB).
+Lưu ý: đổi `EMBED_BACKEND` sau khi đã ingest = phải xóa index và ingest lại (xem Troubleshooting).
 
 ## Bước 4 — Ingest thật (P1 live)
 

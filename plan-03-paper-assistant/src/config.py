@@ -27,12 +27,24 @@ SQLITE_PATH = DATA_DIR / "metadata.sqlite"
 COLLECTION = "papers"
 MAX_CHUNK_TOKENS = 800  # ước lượng ~4 ký tự / token
 
-# Models — answer dùng opus cho chất lượng; tác vụ phụ (expansion) dùng haiku
-# cho rẻ/nhanh (xem SETUP.md mục chi phí). Đổi qua env nếu muốn.
+# ---- LLM backend ----
+# "anthropic" (mặc định, có citations API) | "openai_compat" (Ollama/LM Studio/
+# Groq/Gemini... — citation chuyển sang chế độ đánh số nguồn qua prompt)
+LLM_BACKEND = os.getenv("LLM_BACKEND", "anthropic")
+
+# Models khi LLM_BACKEND=anthropic — answer dùng opus cho chất lượng; tác vụ
+# phụ (expansion) dùng haiku cho rẻ/nhanh. Đổi qua env nếu muốn.
 ANSWER_MODEL = os.getenv("ANSWER_MODEL", "claude-opus-5")
 EXPAND_MODEL = os.getenv("EXPAND_MODEL", "claude-haiku-4-5")
 
-# "voyage" | "fake" (test/offline) | "none" (bỏ qua re-rank, chỉ cắt top-k)
+# Khi LLM_BACKEND=openai_compat: mọi call dùng chung 1 endpoint + 1 model.
+# Mặc định trỏ Ollama local; xem SETUP.md mục "Phương án local/free" cho
+# base_url của Groq/Gemini/LM Studio.
+OPENAI_COMPAT_BASE_URL = os.getenv("OPENAI_COMPAT_BASE_URL", "http://localhost:11434/v1")
+OPENAI_COMPAT_API_KEY = os.getenv("OPENAI_COMPAT_API_KEY", "ollama")  # Ollama không cần key thật
+OPENAI_COMPAT_MODEL = os.getenv("OPENAI_COMPAT_MODEL", "qwen2.5:14b")
+
+# "voyage" | "local" (bge-*, chạy trên máy, $0) | "fake" (test) | "none" (bỏ re-rank)
 RERANK_BACKEND = os.getenv("RERANK_BACKEND", "voyage")
 
 GOLDEN_SET = DATA_DIR / "golden_set.jsonl"

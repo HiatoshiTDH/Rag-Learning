@@ -43,6 +43,31 @@ class VoyageReranker:
         return [candidates[r.index] for r in result.results]
 
 
+class LocalReranker:
+    """bge-reranker-v2-m3 chạy local — $0. Tải model ~2.3GB lần đầu.
+
+    Cần: pip install sentence-transformers
+    """
+
+    MODEL = "BAAI/bge-reranker-v2-m3"
+
+    def __init__(self):
+        try:
+            from sentence_transformers import CrossEncoder
+        except ImportError as e:
+            raise RuntimeError(
+                "RERANK_BACKEND=local cần sentence-transformers: pip install sentence-transformers"
+            ) from e
+        self.model = CrossEncoder(self.MODEL)
+
+    def rerank(self, query: str, candidates: list[dict], top_k: int) -> list[dict]:
+        if not candidates:
+            return []
+        scores = self.model.predict([(query, c["text"]) for c in candidates])
+        ranked = sorted(zip(candidates, scores), key=lambda x: x[1], reverse=True)
+        return [c for c, _ in ranked[:top_k]]
+
+
 class NoopReranker:
     """Không re-rank — giữ thứ tự hiện có, chỉ cắt top-k (để đo baseline)."""
 
@@ -58,4 +83,6 @@ def get_reranker():
         return NoopReranker()
     if backend == "voyage":
         return VoyageReranker()
-    raise ValueError(f"RERANK_BACKEND không hợp lệ: {backend!r} (voyage | fake | none)")
+    if backend == "local":
+        return LocalReranker()
+    raise ValueError(f"RERANK_BACKEND không hợp lệ: {backend!r} (voyage | local | fake | none)")

@@ -45,6 +45,25 @@ def test_extract_answer_numbers_citations():
     assert [c["title"] for c in result["citations"]] == ["Paper A — 3. Method", "Paper B — 4. Results"]
 
 
+def test_build_generic_prompt_numbers_sources():
+    from src.answer import build_generic_prompt
+
+    prompt = build_generic_prompt("câu hỏi?", SECTIONS)
+    assert "[1] Paper A — 3. Method" in prompt
+    assert "[2] Paper B — 4. Results" in prompt
+    assert prompt.rstrip().endswith("Câu hỏi: câu hỏi?")
+
+
+def test_extract_generic_citations():
+    from src.answer import extract_generic_citations
+
+    result = extract_generic_citations(
+        "Phương pháp X [1] đạt 95% [2]. Số lạc loài [9] phải bị bỏ qua.", SECTIONS
+    )
+    assert [c["n"] for c in result["citations"]] == [1, 2]
+    assert result["citations"][0]["title"] == "Paper A — 3. Method"
+
+
 def test_router_heuristics():
     known = ["2304.03442", "2308.00001"]
     assert route("so sánh 2304.03442 và 2308.00001", known)["kind"] == "compare"
