@@ -62,6 +62,24 @@ pip install sentence-transformers
 | **Gemini** (free tier) | `OPENAI_COMPAT_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/`<br>`OPENAI_COMPAT_API_KEY=<key AI Studio>`<br>`OPENAI_COMPAT_MODEL=gemini-2.5-flash` | Free tier rộng rãi; lưu ý free tier có thể dùng data để train — đừng đưa dữ liệu nhạy cảm |
 | **LM Studio** (local, $0) | `OPENAI_COMPAT_BASE_URL=http://localhost:1234/v1` | GUI dễ dùng nếu ngại terminal |
 
+#### Sizing phần cứng cho tổ hợp C (tham chiếu: 32GB RAM + RTX 4070 12GB — đủ thoải mái)
+
+| Thành phần | VRAM/RAM | Ghi chú |
+|------------|----------|---------|
+| `qwen2.5:14b` Q4 | ~9GB VRAM | ~30-40 tok/s trên 4070 — cấu hình chất lượng |
+| `qwen2.5:7b` Q4 | ~4.7GB VRAM | 60+ tok/s — cấu hình tốc độ, bge cùng nằm GPU vẫn dư |
+| `bge-m3` + `bge-reranker` | ~1.2GB mỗi cái | Chạy CPU cũng đủ nhanh (embed 10-100 paper, rerank 40 đoạn/query) |
+| GROBID + Qdrant + hệ thống | ~7GB RAM | CPU |
+
+- GPU ≤ 8GB (VD 4070 laptop): dùng 7B, phần còn lại giữ nguyên.
+- Khi 14B + bge tranh GPU: ép bge sang CPU bằng `CUDA_VISIBLE_DEVICES=""` cho process Python, hoặc chấp nhận Ollama tự offload vài layer sang RAM (chậm hơn chút, vẫn chạy).
+
+> ⚠️ **Cạm bẫy Ollama phải né:** mặc định Ollama giới hạn context ~4K token và **cắt phần thừa trong im lặng**. Prompt RAG ở đây dài 10-20K token (6-8 section paper) — không chỉnh thì model không thấy phần lớn nguồn mà không báo lỗi gì, triệu chứng là "trả lời chung chung, lơ nguồn". Khởi động bằng:
+> ```bash
+> OLLAMA_CONTEXT_LENGTH=16384 ollama serve
+> ```
+> (14B Q4 + 16K context ≈ 10.5-11GB VRAM — vừa 4070 12GB.)
+
 **Trade-off phải biết khi rời Anthropic backend:** citations API là tính năng riêng của Claude. Với `openai_compat`, hệ thống tự chuyển sang **citation qua prompt** (nguồn đánh số [1][2], trích số từ câu trả lời) — hoạt động được nhưng model có thể ghi nhầm số nguồn, và không có `cited_text` chỉ đúng đoạn được trích. Golden set + eval vẫn chạy bình thường vì chúng đo tầng retrieval (không phụ thuộc LLM backend).
 
 **Mẹo thực dụng:** dev/thử nghiệm bằng tổ hợp C, khi cần câu trả lời chất lượng cho nghiên cứu thật thì chỉ cần đổi `LLM_BACKEND=anthropic` — không phải index lại gì cả (embedding vẫn là bge-m3). Chỉ khi đổi `EMBED_BACKEND` mới phải xóa index (dimension khác nhau) và ingest lại.
