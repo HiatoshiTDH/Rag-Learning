@@ -27,6 +27,10 @@ SQLITE_PATH = DATA_DIR / "metadata.sqlite"
 COLLECTION = "papers"
 MAX_CHUNK_TOKENS = 800  # ước lượng ~4 ký tự / token
 
+# Ngôn ngữ trả lời — tách biệt với ngôn ngữ câu hỏi:
+# "auto" (mặc định, trả lời theo ngôn ngữ câu hỏi) | "en" | "vi"
+ANSWER_LANGUAGE = os.getenv("ANSWER_LANGUAGE", "auto")
+
 # ---- LLM backend ----
 # "anthropic" (mặc định, có citations API) | "openai_compat" (Ollama/LM Studio/
 # Groq/Gemini... — citation chuyển sang chế độ đánh số nguồn qua prompt)

@@ -2,7 +2,9 @@
 
 from types import SimpleNamespace
 
-from src.answer import build_answer_request, extract_answer, route
+import pytest
+
+from src.answer import build_answer_request, extract_answer, route, system_prompt
 
 SECTIONS = [
     {"paper_title": "Paper A", "section": "3. Method", "text": "AAA " * 50,
@@ -62,6 +64,40 @@ def test_extract_generic_citations():
     )
     assert [c["n"] for c in result["citations"]] == [1, 2]
     assert result["citations"][0]["title"] == "Paper A — 3. Method"
+
+
+# --------------------------------------------------- ngôn ngữ trả lời (language)
+
+def test_system_prompt_default_matches_question_language():
+    assert "ngôn ngữ của câu hỏi" in system_prompt("auto")
+
+
+def test_system_prompt_en_forces_english_regardless_of_question():
+    text = system_prompt("en")
+    assert "tiếng Anh" in text and "BẤT KỂ" in text
+
+
+def test_system_prompt_vi_forces_vietnamese():
+    text = system_prompt("vi")
+    assert "tiếng Việt" in text and "BẤT KỂ" in text
+
+
+def test_system_prompt_invalid_language_raises():
+    with pytest.raises(ValueError):
+        system_prompt("fr")
+
+
+def test_build_answer_request_hoi_tieng_viet_tra_loi_tieng_anh():
+    """Kịch bản người dùng: hỏi tiếng Việt, muốn nhận lại tiếng Anh."""
+    req = build_answer_request("Paper này giải quyết vấn đề gì?", SECTIONS, language="en")
+    assert "tiếng Anh" in req["system"] and "BẤT KỂ" in req["system"]
+
+
+def test_build_generic_prompt_language_en():
+    from src.answer import build_generic_prompt
+
+    prompt = build_generic_prompt("câu hỏi tiếng Việt?", SECTIONS, language="en")
+    assert "tiếng Anh" in prompt
 
 
 def test_router_heuristics():

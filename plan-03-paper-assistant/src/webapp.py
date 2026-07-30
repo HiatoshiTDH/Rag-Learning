@@ -24,11 +24,13 @@ class AskIn(BaseModel):
     paper_id: str = ""
     section_type: str = ""
     expand: bool = True
+    language: str = ""      # "" -> None (dùng config.ANSWER_LANGUAGE) | "auto"/"en"/"vi"
 
 
 class CompareIn(BaseModel):
     question: str
     paper_ids: list[str]
+    language: str = ""
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -48,7 +50,8 @@ def api_ask(body: AskIn):
         filters["paper_id"] = body.paper_id
     if body.section_type:
         filters["section_type"] = body.section_type
-    result = answer_fn(body.question, filters=filters or None, expand=body.expand)
+    result = answer_fn(body.question, filters=filters or None, expand=body.expand,
+                       language=body.language or None)
     return {
         "text": result["text"],
         "citations": result["citations"],
@@ -61,5 +64,5 @@ def api_ask(body: AskIn):
 
 @app.post("/api/compare")
 def api_compare(body: CompareIn):
-    result = compare_fn(body.question, body.paper_ids)
+    result = compare_fn(body.question, body.paper_ids, language=body.language or None)
     return {"text": result["text"], "per_paper": result.get("per_paper", [])}

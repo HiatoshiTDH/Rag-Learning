@@ -51,6 +51,11 @@
         <option>conclusion</option>
       </select>
       <label class="muted"><input type="checkbox" id="expand" checked> query expansion</label>
+      <select id="lang" title="Ngôn ngữ TRẢ LỜI — tách biệt với ngôn ngữ câu hỏi">
+        <option value="">Trả lời: theo câu hỏi</option>
+        <option value="en">Trả lời: English</option>
+        <option value="vi">Trả lời: Tiếng Việt</option>
+      </select>
       <button id="ask">Hỏi</button>
       <button id="cmp" title="Chọn nhiều paper bằng Ctrl+click ở ô bên dưới">So sánh</button>
     </div>
@@ -114,7 +119,7 @@ $("ask").onclick = async () => {
   const q = $("q").value.trim();
   if (!q) return;
   const data = await post("/api/ask", { question: q, paper_id: $("paper").value,
-    section_type: $("stype").value, expand: $("expand").checked });
+    section_type: $("stype").value, expand: $("expand").checked, language: $("lang").value });
   if (data) render(data.text, data.citations);
 };
 
@@ -128,7 +133,7 @@ $("cmp").onclick = async () => {
   const ids = [...multi.selectedOptions].map(o => o.value);
   const q = $("q").value.trim();
   if (!q || ids.length < 2) { $("status").textContent = "Cần câu hỏi + ≥2 paper."; return; }
-  const data = await post("/api/compare", { question: q, paper_ids: ids });
+  const data = await post("/api/compare", { question: q, paper_ids: ids, language: $("lang").value });
   if (data) render(data.text, []);
 };
 

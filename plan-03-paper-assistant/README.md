@@ -106,6 +106,15 @@ Dùng citations API của Claude — đưa mỗi section vào như một `docume
 
 Với câu hỏi so sánh nhiều paper (U2, U4): chạy **map-reduce** — retrieve riêng cho từng paper, tóm tắt góc nhìn từng paper (map), rồi một call cuối tổng hợp so sánh (reduce).
 
+### 4.6 Ngôn ngữ trả lời tách biệt với ngôn ngữ câu hỏi
+Mặc định model trả lời đúng ngôn ngữ câu hỏi (hỏi tiếng Việt → trả lời tiếng Việt). Có thể ép trả lời cố định một ngôn ngữ bất kể câu hỏi — hữu ích khi hỏi tiếng Việt cho nhanh nhưng muốn giữ thuật ngữ tiếng Anh gốc để viết paper/研究計画書:
+
+```bash
+python -m src.cli ask "Paper này giải quyết vấn đề gì?" --lang en   # hỏi VN, trả lời EN
+```
+
+Đặt cố định qua `.env`: `ANSWER_LANGUAGE=en` (hoặc `vi`, `auto`). Áp dụng đồng nhất cho cả 3 đường sinh câu trả lời (citations API, generic/local LLM, map-reduce so sánh) vì cùng đi qua `system_prompt(language)`.
+
 ## 5. Milestones
 
 | Tuần | Việc | Definition of done |

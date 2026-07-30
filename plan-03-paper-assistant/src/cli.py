@@ -1,11 +1,15 @@
 """P5 (5.1) — CLI: python -m src.cli <lệnh>
 
-  ask "câu hỏi" [--paper ID] [--section-type method] [--no-expand]
-  compare "câu hỏi" ID1 ID2 [...]
+  ask "câu hỏi" [--paper ID] [--section-type method] [--no-expand] [--lang en|vi|auto]
+  compare "câu hỏi" ID1 ID2 [...] [--lang en|vi|auto]
   ingest                    # đọc data/seed_papers.txt, chạy trọn pipeline
   watch                     # quét arXiv theo data/watch_keywords.txt, ingest paper mới
   list                      # paper đã index
   eval [--stage v1|hybrid|rerank|full] [--note "..."]
+
+--lang tách biệt NGÔN NGỮ TRẢ LỜI khỏi ngôn ngữ câu hỏi — VD hỏi tiếng Việt
+nhưng muốn nhận lại tiếng Anh (giữ thuật ngữ gốc): --lang en. Mặc định "auto"
+(trả lời theo đúng ngôn ngữ câu hỏi), hoặc đặt cố định qua .env ANSWER_LANGUAGE.
 """
 
 import argparse
@@ -22,10 +26,14 @@ def main() -> None:
     p_ask.add_argument("--section-type", choices=["abstract", "intro", "related_work",
                                                   "method", "experiment", "result", "conclusion"])
     p_ask.add_argument("--no-expand", action="store_true", help="Tắt query expansion (nhanh/rẻ hơn)")
+    p_ask.add_argument("--lang", choices=["auto", "en", "vi"], default=None,
+                       help="Ngôn ngữ TRẢ LỜI, tách biệt với ngôn ngữ câu hỏi (mặc định: auto)")
 
     p_cmp = sub.add_parser("compare", help="So sánh 2+ paper theo một câu hỏi")
     p_cmp.add_argument("question")
     p_cmp.add_argument("paper_ids", nargs="+")
+    p_cmp.add_argument("--lang", choices=["auto", "en", "vi"], default=None,
+                       help="Ngôn ngữ TRẢ LỜI, tách biệt với ngôn ngữ câu hỏi (mặc định: auto)")
 
     sub.add_parser("ingest", help="Ingest toàn bộ data/seed_papers.txt")
     sub.add_parser("watch", help="Quét arXiv theo keyword, ingest paper mới")
@@ -67,17 +75,18 @@ def main() -> None:
         if not filters:  # router chỉ can thiệp khi user không tự chỉ định
             decision = route(args.question, [p["paper_id"] for p in list_papers()])
             if decision["kind"] == "compare":
-                print(compare_papers(args.question, decision["paper_ids"])["text"])
+                print(compare_papers(args.question, decision["paper_ids"], language=args.lang)["text"])
                 return
             if decision["kind"] == "single":
                 filters["paper_id"] = decision["paper_ids"][0]
 
-        result = answer(args.question, filters=filters or None, expand=not args.no_expand)
+        result = answer(args.question, filters=filters or None, expand=not args.no_expand,
+                        language=args.lang)
         print(format_answer(result))
 
     elif args.cmd == "compare":
         from src.answer import compare_papers
-        print(compare_papers(args.question, args.paper_ids)["text"])
+        print(compare_papers(args.question, args.paper_ids, language=args.lang)["text"])
 
     elif args.cmd == "eval":
         from src.eval import log_experiment, print_report, run_eval

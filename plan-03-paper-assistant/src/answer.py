@@ -11,22 +11,46 @@ import re
 from src import config
 from src.query import retrieve
 
-SYSTEM_PROMPT = """Bạn là trợ lý nghiên cứu, trả lời DỰA HOÀN TOÀN trên các tài liệu được cung cấp.
+# Ngôn ngữ TRẢ LỜI tách biệt với ngôn ngữ CÂU HỎI (config.ANSWER_LANGUAGE hoặc
+# tham số `language` truyền tay — VD: hỏi tiếng Việt, muốn nhận lại tiếng Anh
+# để giữ thuật ngữ chuẩn xác cho việc viết paper/proposal).
+_LANGUAGE_INSTRUCTIONS = {
+    "auto": "Trả lời bằng đúng ngôn ngữ của câu hỏi.",
+    "en": ("Luôn trả lời bằng tiếng Anh (English), BẤT KỂ câu hỏi được hỏi bằng "
+          "tiếng Việt hay ngôn ngữ nào khác. Giữ nguyên thuật ngữ kỹ thuật gốc, "
+          "không dịch ngược lại tiếng Việt."),
+    "vi": "Luôn trả lời bằng tiếng Việt, BẤT KỂ câu hỏi được hỏi bằng tiếng Anh hay ngôn ngữ nào khác.",
+}
+
+
+def _language_instruction(language: str | None) -> str:
+    language = language or config.ANSWER_LANGUAGE
+    if language not in _LANGUAGE_INSTRUCTIONS:
+        raise ValueError(f"language không hợp lệ: {language!r} (auto | en | vi)")
+    return _LANGUAGE_INSTRUCTIONS[language]
+
+
+def system_prompt(language: str | None = None) -> str:
+    """`language`: None -> dùng config.ANSWER_LANGUAGE; hoặc truyền tay "auto"/"en"/"vi"."""
+    return f"""Bạn là trợ lý nghiên cứu, trả lời DỰA HOÀN TOÀN trên các tài liệu được cung cấp.
 Quy tắc:
 - Chỉ nói những gì có căn cứ trong tài liệu. Không đủ căn cứ thì nói rõ "các paper trong kho không đề cập".
-- Trả lời bằng đúng ngôn ngữ của câu hỏi.
+- {_language_instruction(language)}
 - Khi nêu phương pháp/số liệu, luôn gắn với paper cụ thể (citations sẽ tự đính kèm)."""
 
 
 # ----------------------------------------------------- build request (thuần)
 
 def build_answer_request(question: str, sections: list[dict],
-                         model: str | None = None, max_tokens: int = 4096) -> dict:
+                         model: str | None = None, max_tokens: int = 4096,
+                         language: str | None = None) -> dict:
     """Dựng request Messages API — tách riêng để test không cần gọi mạng.
 
     Prompt caching (task 5.3): cache_control đặt trên document block CUỐI —
     hỏi nhiều câu trên cùng bộ section (hội thoại đào sâu 1 paper) chỉ trả
     ~10% giá cho phần tài liệu từ request thứ 2.
+
+    `language`: None -> config.ANSWER_LANGUAGE; hoặc "auto"/"en"/"vi" (xem system_prompt()).
     """
     content: list[dict] = []
     for i, sec in enumerate(sections):
@@ -44,7 +68,7 @@ def build_answer_request(question: str, sections: list[dict],
     return {
         "model": model or config.ANSWER_MODEL,
         "max_tokens": max_tokens,
-        "system": SYSTEM_PROMPT,
+        "system": system_prompt(language),
         "messages": [{"role": "user", "content": content}],
     }
 
@@ -92,14 +116,14 @@ def format_answer(result: dict) -> str:
 
 _GENERIC_PROMPT = """Trả lời câu hỏi CHỈ dựa trên các nguồn được đánh số dưới đây.
 Sau mỗi ý lấy từ nguồn nào, ghi số nguồn dạng [1], [2]... Không đủ căn cứ thì nói rõ.
-Trả lời bằng đúng ngôn ngữ của câu hỏi.
+{language_instruction}
 
 {sources}
 
 Câu hỏi: {question}"""
 
 
-def build_generic_prompt(question: str, sections: list[dict]) -> str:
+def build_generic_prompt(question: str, sections: list[dict], language: str | None = None) -> str:
     """Citation qua prompt — cho model không có citations API (Ollama/Groq/Gemini...).
 
     Kém tin cậy hơn citations API của Claude (model có thể ghi nhầm số) —
@@ -109,7 +133,8 @@ def build_generic_prompt(question: str, sections: list[dict]) -> str:
         f'[{i + 1}] {sec["paper_title"]} — {sec["section"]}\n{sec["text"]}'
         for i, sec in enumerate(sections)
     )
-    return _GENERIC_PROMPT.format(sources=sources, question=question)
+    return _GENERIC_PROMPT.format(sources=sources, question=question,
+                                  language_instruction=_language_instruction(language))
 
 
 def extract_generic_citations(text: str, sections: list[dict]) -> dict:
@@ -125,11 +150,14 @@ def extract_generic_citations(text: str, sections: list[dict]) -> dict:
 
 # ------------------------------------------------------------ gọi API (2.2)
 
-def answer(question: str, filters: dict | None = None, **retrieve_kwargs) -> dict:
+def answer(question: str, filters: dict | None = None, language: str | None = None,
+           **retrieve_kwargs) -> dict:
     """Câu hỏi thường: retrieve -> 1 call LLM.
 
     - LLM_BACKEND=anthropic:     citations API (có cấu trúc, tin cậy).
     - LLM_BACKEND=openai_compat: citation qua prompt đánh số nguồn.
+    `language`: None -> config.ANSWER_LANGUAGE; hoặc "auto"/"en"/"vi" để hỏi
+    một ngôn ngữ nhưng nhận lại ngôn ngữ khác (VD: hỏi tiếng Việt, trả lời tiếng Anh).
     """
     sections = retrieve(question, filters=filters, **retrieve_kwargs)
     if not sections:
@@ -138,13 +166,14 @@ def answer(question: str, filters: dict | None = None, **retrieve_kwargs) -> dic
     if config.LLM_BACKEND == "openai_compat":
         from src.llm import complete
 
-        text = complete(build_generic_prompt(question, sections),
-                        model=config.ANSWER_MODEL, max_tokens=2048, system=SYSTEM_PROMPT)
+        text = complete(build_generic_prompt(question, sections, language=language),
+                        model=config.ANSWER_MODEL, max_tokens=2048,
+                        system=system_prompt(language))
         result = extract_generic_citations(text, sections)
     else:
         import anthropic
 
-        request = build_answer_request(question, sections)
+        request = build_answer_request(question, sections, language=language)
         response = anthropic.Anthropic().messages.create(**request)
         result = extract_answer(response)
 
@@ -166,17 +195,21 @@ Tóm tắt góc nhìn của từng paper:
 {summaries}
 
 So sánh trực tiếp các paper trên theo câu hỏi. Trình bày điểm giống, điểm khác,
-và điều kiện áp dụng của mỗi cách tiếp cận. Trả lời bằng ngôn ngữ của câu hỏi."""
+và điều kiện áp dụng của mỗi cách tiếp cận. {language_instruction}"""
 
 
-def compare_papers(question: str, paper_ids: list[str], llm=None, **retrieve_kwargs) -> dict:
-    """Map-reduce: retrieve + tóm tắt riêng từng paper (map) -> 1 call tổng hợp (reduce)."""
+def compare_papers(question: str, paper_ids: list[str], llm=None, language: str | None = None,
+                   **retrieve_kwargs) -> dict:
+    """Map-reduce: retrieve + tóm tắt riêng từng paper (map) -> 1 call tổng hợp (reduce).
+
+    `language` áp dụng cho cả bước map và reduce (cùng system prompt) — xem answer().
+    """
     if llm is None:
         from src.llm import complete
 
         def llm(prompt: str, max_tokens: int = 1500) -> str:
             return complete(prompt, model=config.ANSWER_MODEL, max_tokens=max_tokens,
-                            system=SYSTEM_PROMPT)
+                            system=system_prompt(language))
 
     summaries = []
     for pid in paper_ids:
@@ -189,7 +222,8 @@ def compare_papers(question: str, paper_ids: list[str], llm=None, **retrieve_kwa
         summary = llm(_MAP_PROMPT.format(title=title, question=question) + "\n\n" + excerpt)
         summaries.append(f"### {title} ({pid})\n{summary}")
 
-    text = llm(_REDUCE_PROMPT.format(question=question, summaries="\n\n".join(summaries)))
+    text = llm(_REDUCE_PROMPT.format(question=question, summaries="\n\n".join(summaries),
+                                     language_instruction=_language_instruction(language)))
     return {"text": text, "citations": [], "per_paper": summaries}
 
 
