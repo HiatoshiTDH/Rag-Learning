@@ -1,0 +1,11 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6335:6333"   # 6335 để không đụng Qdrant của plan-03 nếu chạy cùng lúc
+      - "6336:6334"
+    volumes:
+      - qdrant_storage_npc:/qdrant/storage
+
+volumes:
+  qdrant_storage_npc:

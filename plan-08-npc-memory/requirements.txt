@@ -3,4 +3,10 @@ voyageai
 qdrant-client
 fastapi           # memory service tách khỏi game process
 uvicorn
+httpx             # TestClient cho FastAPI
+requests          # openai_compat backend
+python-dotenv
 pytest
+
+# EMBED_BACKEND=local (bge-m3, $0) — bỏ comment nếu dùng:
+# sentence-transformers

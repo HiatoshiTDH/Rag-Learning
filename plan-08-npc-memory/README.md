@@ -1,5 +1,11 @@
 # Plan 8 — NPC game có trí nhớ dài hạn (Memory RAG) — chi tiết
 
+> 🗂 **Bộ tài liệu của plan này:**
+> - README.md (file này) — kiến trúc & lý do thiết kế
+> - [PLAN.md](PLAN.md) — kế hoạch thực thi: phase, task, DoD, rủi ro, decision log
+> - [SETUP.md](SETUP.md) — chuẩn bị: backend, phần cứng, chi phí
+> - [TEST_AT_HOME.md](TEST_AT_HOME.md) — **bài test tổng thể khi về máy** (demo CLI + curl + đo latency)
+
 > Mức độ dùng RAG: ★★★★★ · Độ khó: Khó · Thời gian: 4–8 tuần
 > Dựa trên kiến trúc **Generative Agents** (Park et al., Stanford 2023) — điều chỉnh cho ràng buộc thực tế của game: latency, cost, và người chơi cố tình phá.
 
