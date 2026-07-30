@@ -90,6 +90,16 @@ python -m src.cli eval --stage full   --note "+expansion"
 
 **Expected:** 4 dòng mới trong `EXPERIMENTS.md`, recall tăng dần (hoặc ít nhất không giảm) qua từng stage. Đây chính là task 3.5 — từ giờ mọi thay đổi đều so với các con số này.
 
+## Bước 6b — UI web (P5.4)
+
+```bash
+uvicorn src.webapp:app --port 8090
+```
+
+Mở http://localhost:8090 — trang hỏi đáp với dropdown chọn paper/section,
+checkbox query expansion và chế độ so sánh nhiều paper (Ctrl+click chọn ≥2).
+**Expected:** danh sách paper hiện trong dropdown; hỏi ra câu trả lời + mục Nguồn.
+
 ## Bước 7 — (Tùy chọn) Auto-ingest hằng tuần (P5.2)
 
 ```bash

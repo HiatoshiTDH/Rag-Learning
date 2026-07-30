@@ -3,10 +3,10 @@
 > Tài liệu này là **kế hoạch thực thi chi tiết** — chia phase, task, definition of done, ước lượng giờ.
 > Kiến trúc & lý do thiết kế: xem [README.md](README.md). Chuẩn bị môi trường: xem [SETUP.md](SETUP.md).
 
-> **📍 TRẠNG THÁI HIỆN TẠI: toàn bộ code P1→P5 đã viết xong, 26 test offline pass.**
-> Việc còn lại làm trên máy nhà (cần Docker + API key + mạng tới arXiv):
-> chạy theo **[TEST_AT_HOME.md](TEST_AT_HOME.md)** — hoặc `./scripts/smoke_test.sh` cho bản tự động.
-> Phần code duy nhất chưa làm: 5.4 UI web (tùy chọn, chỉ làm nếu CLI thấy thiếu).
+> **📍 TRẠNG THÁI HIỆN TẠI: TOÀN BỘ code P1→P5 (kể cả 5.4 UI web) đã viết xong,
+> 33 test offline pass.** Việc còn lại làm trên máy nhà (Docker + API key/Ollama +
+> mạng tới arXiv): chạy theo **[TEST_AT_HOME.md](TEST_AT_HOME.md)** —
+> hoặc `./scripts/smoke_test.sh` cho bản tự động.
 
 ## Nguyên tắc thực thi
 
@@ -90,7 +90,7 @@ Checklist chi tiết trong [SETUP.md](SETUP.md). Tóm tắt:
 | 5.1 | CLI hoàn chỉnh: `ask`, `ingest`, `list`, `compare` | `src/cli.py` | `--help` đầy đủ, lỗi rõ ràng | 3 |
 | 5.2 | Auto-ingest: cron/script quét arXiv theo keyword hằng tuần | mới | Chạy định kỳ, chỉ ingest paper mới (dedupe theo arXiv id) | 3 |
 | 5.3 | Prompt caching cho phần hệ thống + tài liệu lặp lại | `src/answer.py` | `cache_read_input_tokens > 0` ở request thứ 2 trở đi | 2 |
-| 5.4 | (Tùy chọn) UI web tối giản — chỉ làm nếu CLI thấy thiếu | mới | — | 4 |
+| 5.4 | UI web tối giản (đã làm: `src/webapp.py` + `src/static/index.html`) | `uvicorn src.webapp:app --port 8090` | Trang hỏi đáp + filter paper/section + so sánh, có test | 4 |
 
 ---
 

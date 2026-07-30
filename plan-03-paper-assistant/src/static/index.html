@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paper Assistant</title>
+<style>
+  :root { --bg:#0f1115; --panel:#181b22; --border:#2a2f3a; --text:#e6e8ee;
+          --muted:#8b93a5; --accent:#5aa9ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font:15px/1.6 system-ui, sans-serif; }
+  .wrap { max-width:860px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:20px; }
+  .panel { background:var(--panel); border:1px solid var(--border);
+           border-radius:10px; padding:16px; margin-bottom:16px; }
+  textarea { width:100%; min-height:70px; resize:vertical; background:var(--bg);
+             color:var(--text); border:1px solid var(--border); border-radius:8px;
+             padding:10px; font:inherit; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:10px; }
+  select, button, label { font:inherit; }
+  select { background:var(--bg); color:var(--text); border:1px solid var(--border);
+           border-radius:8px; padding:7px 10px; max-width:280px; }
+  button { background:var(--accent); color:#08101d; border:0; border-radius:8px;
+           padding:8px 18px; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:wait; }
+  .muted { color:var(--muted); font-size:13px; }
+  #answer { white-space:pre-wrap; }
+  .cite { border-top:1px solid var(--border); margin-top:12px; padding-top:10px;
+          font-size:13px; color:var(--muted); }
+  .cite b { color:var(--text); }
+  .hidden { display:none; }
+  .err { color:#ff8080; }
+  code { background:var(--bg); padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📄 Paper Assistant</h1>
+  <div class="sub">Hỏi đáp trên kho paper đã index — Plan 3 / Rag-Learning</div>
+
+  <div class="panel">
+    <textarea id="q" placeholder="Hỏi bằng tiếng Việt hoặc tiếng Anh… (Ctrl+Enter để gửi)"></textarea>
+    <div class="row">
+      <select id="paper"><option value="">— Toàn bộ kho —</option></select>
+      <select id="stype">
+        <option value="">— Mọi section —</option>
+        <option>abstract</option><option>intro</option><option>related_work</option>
+        <option>method</option><option>experiment</option><option>result</option>
+        <option>conclusion</option>
+      </select>
+      <label class="muted"><input type="checkbox" id="expand" checked> query expansion</label>
+      <button id="ask">Hỏi</button>
+      <button id="cmp" title="Chọn nhiều paper bằng Ctrl+click ở ô bên dưới">So sánh</button>
+    </div>
+    <div class="row">
+      <select id="papers-multi" multiple size="3" class="hidden" style="min-width:280px"></select>
+    </div>
+  </div>
+
+  <div id="out" class="panel hidden">
+    <div id="answer"></div>
+    <div id="cites" class="cite"></div>
+  </div>
+  <div class="muted" id="status"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let papers = [];
+
+async function loadPapers() {
+  papers = await (await fetch("/api/papers")).json();
+  for (const sel of [$("paper"), $("papers-multi")]) {
+    for (const p of papers) {
+      const o = document.createElement("option");
+      o.value = p.paper_id;
+      o.textContent = `${p.paper_id} — ${p.title.slice(0, 60)}`;
+      sel.appendChild(o);
+    }
+  }
+  if (!papers.length)
+    $("status").textContent = "Kho trống — chạy `python -m src.cli ingest` trước.";
+}
+
+function busy(on) { $("ask").disabled = $("cmp").disabled = on;
+                    $("status").textContent = on ? "Đang xử lý… (opus có thể mất chục giây)" : ""; }
+
+function render(text, cites) {
+  $("out").classList.remove("hidden");
+  $("answer").textContent = text;
+  $("cites").innerHTML = cites.length
+    ? "<b>Nguồn</b><br>" + cites.map(c => `[${c.n}] ${c.title}`).join("<br>")
+    : "";
+}
+
+async function post(url, body) {
+  busy(true);
+  try {
+    const r = await fetch(url, { method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(await r.text());
+    return await r.json();
+  } catch (e) {
+    $("out").classList.remove("hidden");
+    $("answer").innerHTML = `<span class="err">Lỗi: ${e.message}</span>`;
+    $("cites").innerHTML = "";
+    return null;
+  } finally { busy(false); }
+}
+
+$("ask").onclick = async () => {
+  const q = $("q").value.trim();
+  if (!q) return;
+  const data = await post("/api/ask", { question: q, paper_id: $("paper").value,
+    section_type: $("stype").value, expand: $("expand").checked });
+  if (data) render(data.text, data.citations);
+};
+
+$("cmp").onclick = async () => {
+  const multi = $("papers-multi");
+  if (multi.classList.contains("hidden")) {           // lần bấm đầu: hiện ô chọn
+    multi.classList.remove("hidden");
+    $("status").textContent = "Chọn ≥2 paper (Ctrl+click) rồi bấm So sánh lần nữa.";
+    return;
+  }
+  const ids = [...multi.selectedOptions].map(o => o.value);
+  const q = $("q").value.trim();
+  if (!q || ids.length < 2) { $("status").textContent = "Cần câu hỏi + ≥2 paper."; return; }
+  const data = await post("/api/compare", { question: q, paper_ids: ids });
+  if (data) render(data.text, []);
+};
+
+$("q").addEventListener("keydown", e => {
+  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) $("ask").click();
+});
+
+loadPapers();
+</script>
+</body>
+</html>

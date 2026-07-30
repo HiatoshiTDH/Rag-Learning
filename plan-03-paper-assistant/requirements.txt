@@ -5,6 +5,9 @@ requests          # gọi GROBID + arXiv API
 lxml              # parse TEI XML từ GROBID
 rank-bm25         # BM25 cho hybrid search
 python-dotenv     # đọc .env
+fastapi           # UI web (5.4): uvicorn src.webapp:app --port 8090
+uvicorn
+httpx             # TestClient
 pytest
 
 # Phương án local-free (thay Voyage) — bỏ comment nếu dùng:
