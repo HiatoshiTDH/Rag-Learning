@@ -11,6 +11,7 @@ Ba tầng tách bạch để test được từng tầng:
 
 import json
 import re
+import shutil
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -142,6 +143,36 @@ def fetch_arxiv(keyword: str, category: str = "", max_results: int = 20) -> list
     return ids
 
 
+def add_local_pdf(pdf_path: Path | str, paper_id: str | None = None,
+                  out_dir: Path | None = None) -> str:
+    """Đăng ký một PDF ngoài arXiv (journal, Google Scholar, paper mua...) vào kho.
+
+    Copy PDF vào data/papers/ + tạo metadata tối thiểu (title từ tên file — GROBID
+    sẽ bóc title thật khi parse, metadata này chỉ là fallback). Trả về paper_id
+    dạng "local-<slug>" để dùng với ingest_one / filter / golden set.
+    """
+    pdf_path = Path(pdf_path)
+    if not pdf_path.exists():
+        raise FileNotFoundError(f"Không thấy file: {pdf_path}")
+    out_dir = out_dir or config.PAPERS_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    paper_id = paper_id or f"local-{_slug(pdf_path.stem)}"
+    safe_id = paper_id.replace("/", "_")
+    dest = out_dir / f"{safe_id}.pdf"
+    if pdf_path.resolve() != dest.resolve():
+        shutil.copy(pdf_path, dest)
+
+    meta_path = out_dir / f"{safe_id}.json"
+    if not meta_path.exists():
+        meta_path.write_text(json.dumps({
+            "paper_id": paper_id,
+            "title": pdf_path.stem.replace("-", " ").replace("_", " "),
+            "authors": [], "year": 0, "abstract": "",
+        }, ensure_ascii=False, indent=2))
+    return paper_id
+
+
 # ------------------------------------------------------------- GROBID (docker)
 
 def grobid_parse(pdf_path: Path) -> etree._Element:
@@ -225,14 +256,22 @@ def _slug(text: str, max_len: int = 40) -> str:
 
 
 def _est_tokens(text: str) -> int:
-    return max(1, len(text) // 4)
+    """~4 ký tự/token cho chữ Latin; chữ CJK (Nhật/Trung) đặc hơn nhiều (~0.6 token/ký tự)
+    — nếu đếm chung len//4 thì đoạn tiếng Nhật 3200 ký tự bị coi là 800 token trong khi
+    thực tế ~2000, và không bao giờ được cắt đúng cỡ."""
+    ascii_len = sum(1 for c in text if c.isascii())
+    return max(1, ascii_len // 4 + int((len(text) - ascii_len) * 0.6))
 
 
 def _split_long(text: str, max_tokens: int) -> list[str]:
-    """Đoạn quá dài mới cắt tiếp — cắt theo câu, gom tới ngưỡng."""
+    """Đoạn quá dài mới cắt tiếp — cắt theo câu, gom tới ngưỡng.
+
+    Nhận cả dấu câu CJK (。！？, không có khoảng trắng theo sau) — regex chỉ có
+    [.!?]\\s+ sẽ không bao giờ cắt được văn bản tiếng Nhật.
+    """
     if _est_tokens(text) <= max_tokens:
         return [text]
-    sentences = re.split(r"(?<=[.!?])\s+", text)
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+|(?<=[。！？])", text) if s.strip()]
     parts, current = [], ""
     for s in sentences:
         if current and _est_tokens(current + " " + s) > max_tokens:

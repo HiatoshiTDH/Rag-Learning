@@ -49,6 +49,27 @@ def test_search_with_filter(indexed):
     assert hits and all(h["section_type"] == "abstract" for h in hits)
 
 
+def test_delete_paper_removes_everything(indexed, tmp_path):
+    """Nhóm A.1 — xóa sạch paper khỏi cả Qdrant lẫn SQLite, paper khác không bị đụng."""
+    from src.index import delete_paper, load_chunks
+
+    # Thêm paper thứ 2 để chắc chắn delete không lan sang
+    paper_b = parse_tei(etree.fromstring(FIXTURE.read_bytes()), paper_id="9999.00002")
+    chunks_b = chunk_paper(paper_b)
+    save_metadata(paper_b, chunks_b, db_path=indexed["db_path"])
+    upsert_chunks(chunks_b, embedder=indexed["embedder"], client=indexed["client"])
+    total_before = indexed["client"].count("papers").count
+
+    delete_paper("2308.00001", client=indexed["client"], db_path=indexed["db_path"])
+
+    # Qdrant: chỉ còn điểm của paper B
+    assert indexed["client"].count("papers").count == total_before - len(indexed["chunks"])
+    # SQLite: chunks/sections paper A biến mất, paper B còn nguyên
+    assert load_chunks(db_path=indexed["db_path"], filters={"paper_id": "2308.00001"}) == []
+    assert len(load_chunks(db_path=indexed["db_path"], filters={"paper_id": "9999.00002"})) == len(chunks_b)
+    assert get_section(indexed["chunks"][0].parent_section_id, db_path=indexed["db_path"]) is None
+
+
 def test_parent_section_lookup(indexed):
     """Task 1.5 — full section cho parent-document retrieval ở P3."""
     method_chunk = next(c for c in indexed["chunks"] if c.section_type == "method")

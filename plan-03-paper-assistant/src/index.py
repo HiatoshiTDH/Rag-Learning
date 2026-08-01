@@ -10,7 +10,8 @@ import uuid
 from pathlib import Path
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, FieldCondition, Filter, MatchValue, PointStruct, VectorParams
+from qdrant_client.models import (Distance, FieldCondition, Filter, FilterSelector,
+                                  MatchValue, PointStruct, VectorParams)
 
 from src import config
 from src.embedding import Embedder, get_embedder
@@ -115,6 +116,30 @@ def upsert_chunks(chunks: list[Chunk], embedder: Embedder | None = None,
     ]
     client.upsert(config.COLLECTION, points)
     return len(points)
+
+
+def delete_paper(paper_id: str, client: QdrantClient | None = None,
+                 db_path: Path | None = None) -> None:
+    """Xóa SẠCH một paper khỏi index (Qdrant + SQLite).
+
+    Bắt buộc gọi trước khi index lại một paper sau khi ĐỔI chunking — vì point id
+    Qdrant dẫn xuất từ chunk_id: chunking đổi -> chunk_id mới -> upsert không ghi
+    đè chunk cũ mà cộng dồn thêm, làm méo mọi số đo recall về sau.
+    """
+    client = client or get_qdrant()
+    if client.collection_exists(config.COLLECTION):
+        client.delete(
+            config.COLLECTION,
+            points_selector=FilterSelector(filter=Filter(must=[
+                FieldCondition(key="paper_id", match=MatchValue(value=paper_id))
+            ])),
+        )
+    conn = _connect_db(db_path)
+    with conn:
+        conn.execute("DELETE FROM papers WHERE paper_id = ?", (paper_id,))
+        conn.execute("DELETE FROM sections WHERE paper_id = ?", (paper_id,))
+        conn.execute("DELETE FROM chunks WHERE paper_id = ?", (paper_id,))
+    conn.close()
 
 
 # --------------------------------------------------------------------- đọc

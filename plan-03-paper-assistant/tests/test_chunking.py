@@ -63,3 +63,61 @@ def test_chunk_ids_unique_and_parent_consistent():
     assert len(ids) == len(set(ids))
     for c in chunks:
         assert c.chunk_id.startswith(c.parent_section_id)
+
+
+# ------------------------------------------------- tiếng Nhật / CJK (nhóm A.3)
+
+def test_est_tokens_cjk_denser_than_latin():
+    """Chữ CJK đặc hơn Latin — len//4 sẽ đánh giá thấp ~3x và không bao giờ cắt đúng."""
+    from src.ingest import _est_tokens
+
+    jp = "ロボットの記憶検索機構を提案する。" * 100
+    assert _est_tokens(jp) > len(jp) // 4 * 2
+
+
+def test_split_long_japanese_paragraph():
+    """Văn bản Nhật không có space sau dấu câu — regex [.!?]\\s+ thuần sẽ không bao giờ cắt."""
+    from src import config
+    from src.ingest import Paper, Section, chunk_paper
+
+    jp_par = ("本研究では、身体性エージェントのための長期記憶検索機構を提案する。"
+              "重要度と新しさと関連性を統合したスコアリング関数を用いる。") * 40
+    paper = Paper(paper_id="jp.001", title="日本語論文", authors=["山田太郎"],
+                  year=2024, abstract="要約。",
+                  sections=[Section(title="3. 提案手法", paragraphs=[jp_par])])
+    chunks = [c for c in chunk_paper(paper) if c.section_type != "abstract"]
+    assert len(chunks) >= 2                        # đoạn dài PHẢI bị cắt
+    from src.ingest import _est_tokens
+    for c in chunks:
+        assert _est_tokens(c.text) <= config.MAX_CHUNK_TOKENS + 100
+        assert c.text.rstrip()[-1] in "。！？.!?"    # không cắt giữa câu
+
+
+# ---------------------------------------------------------- PDF local (nhóm B.2)
+
+def test_add_local_pdf(tmp_path, monkeypatch):
+    from src import config
+    from src.ingest import add_local_pdf
+
+    src_pdf = tmp_path / "My Cool Paper (2024).pdf"
+    src_pdf.write_bytes(b"%PDF-fake")
+    out_dir = tmp_path / "papers"
+
+    paper_id = add_local_pdf(src_pdf, out_dir=out_dir)
+    assert paper_id.startswith("local-")
+    assert (out_dir / f"{paper_id}.pdf").exists()
+    meta = (out_dir / f"{paper_id}.json").read_text()
+    assert "My Cool Paper" in meta
+
+    # id tự đặt
+    pid2 = add_local_pdf(src_pdf, paper_id="my-thesis", out_dir=out_dir)
+    assert pid2 == "my-thesis" and (out_dir / "my-thesis.pdf").exists()
+
+
+def test_add_local_pdf_missing_file(tmp_path):
+    import pytest
+
+    from src.ingest import add_local_pdf
+
+    with pytest.raises(FileNotFoundError):
+        add_local_pdf(tmp_path / "khong-ton-tai.pdf", out_dir=tmp_path)

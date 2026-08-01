@@ -6,7 +6,7 @@
 <title>Paper Assistant</title>
 <style>
   :root { --bg:#0f1115; --panel:#181b22; --border:#2a2f3a; --text:#e6e8ee;
-          --muted:#8b93a5; --accent:#5aa9ff; }
+          --muted:#8b93a5; --accent:#5aa9ff; --user:#20304a; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--text);
          font:15px/1.6 system-ui, sans-serif; }
@@ -24,24 +24,31 @@
            border-radius:8px; padding:7px 10px; max-width:280px; }
   button { background:var(--accent); color:#08101d; border:0; border-radius:8px;
            padding:8px 18px; font-weight:600; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--muted);
+                 border:1px solid var(--border); }
   button:disabled { opacity:.5; cursor:wait; }
   .muted { color:var(--muted); font-size:13px; }
-  #answer { white-space:pre-wrap; }
-  .cite { border-top:1px solid var(--border); margin-top:12px; padding-top:10px;
-          font-size:13px; color:var(--muted); }
+  .msg { border:1px solid var(--border); border-radius:10px; padding:12px 14px;
+         margin-bottom:10px; white-space:pre-wrap; }
+  .msg.user { background:var(--user); }
+  .msg.bot { background:var(--panel); }
+  .cite { border-top:1px solid var(--border); margin-top:10px; padding-top:8px;
+          font-size:13px; color:var(--muted); white-space:normal; }
   .cite b { color:var(--text); }
+  .usage { margin-top:6px; font-size:12px; color:var(--muted); white-space:normal; }
   .hidden { display:none; }
   .err { color:#ff8080; }
-  code { background:var(--bg); padding:1px 5px; border-radius:4px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>📄 Paper Assistant</h1>
-  <div class="sub">Hỏi đáp trên kho paper đã index — Plan 3 / Rag-Learning</div>
+  <div class="sub">Hỏi đáp trên kho paper đã index — hội thoại nhớ ngữ cảnh, trả lời streaming</div>
+
+  <div id="conv"></div>
 
   <div class="panel">
-    <textarea id="q" placeholder="Hỏi bằng tiếng Việt hoặc tiếng Anh… (Ctrl+Enter để gửi)"></textarea>
+    <textarea id="q" placeholder="Hỏi bằng tiếng Việt hoặc tiếng Anh… hỏi tiếp được ('còn về X thì sao?'). Ctrl+Enter để gửi"></textarea>
     <div class="row">
       <select id="paper"><option value="">— Toàn bộ kho —</option></select>
       <select id="stype">
@@ -57,26 +64,23 @@
         <option value="vi">Trả lời: Tiếng Việt</option>
       </select>
       <button id="ask">Hỏi</button>
-      <button id="cmp" title="Chọn nhiều paper bằng Ctrl+click ở ô bên dưới">So sánh</button>
+      <button id="cmp" class="ghost" title="Chọn nhiều paper bằng Ctrl+click ở ô bên dưới">So sánh</button>
+      <button id="reset" class="ghost" title="Xóa ngữ cảnh hội thoại">🗑 Mới</button>
     </div>
     <div class="row">
       <select id="papers-multi" multiple size="3" class="hidden" style="min-width:280px"></select>
     </div>
   </div>
 
-  <div id="out" class="panel hidden">
-    <div id="answer"></div>
-    <div id="cites" class="cite"></div>
-  </div>
   <div class="muted" id="status"></div>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
-let papers = [];
+let history = [];   // [{question, answer}] — gửi kèm mỗi request để có hội thoại nhiều lượt
 
 async function loadPapers() {
-  papers = await (await fetch("/api/papers")).json();
+  const papers = await (await fetch("/api/papers")).json();
   for (const sel of [$("paper"), $("papers-multi")]) {
     for (const p of papers) {
       const o = document.createElement("option");
@@ -89,38 +93,80 @@ async function loadPapers() {
     $("status").textContent = "Kho trống — chạy `python -m src.cli ingest` trước.";
 }
 
-function busy(on) { $("ask").disabled = $("cmp").disabled = on;
-                    $("status").textContent = on ? "Đang xử lý… (opus có thể mất chục giây)" : ""; }
-
-function render(text, cites) {
-  $("out").classList.remove("hidden");
-  $("answer").textContent = text;
-  $("cites").innerHTML = cites.length
-    ? "<b>Nguồn</b><br>" + cites.map(c => `[${c.n}] ${c.title}`).join("<br>")
-    : "";
+function busy(on) {
+  $("ask").disabled = $("cmp").disabled = on;
+  $("status").textContent = on ? "Đang xử lý…" : "";
 }
 
-async function post(url, body) {
-  busy(true);
-  try {
-    const r = await fetch(url, { method: "POST",
-      headers: {"Content-Type": "application/json"}, body: JSON.stringify(body) });
-    if (!r.ok) throw new Error(await r.text());
-    return await r.json();
-  } catch (e) {
-    $("out").classList.remove("hidden");
-    $("answer").innerHTML = `<span class="err">Lỗi: ${e.message}</span>`;
-    $("cites").innerHTML = "";
-    return null;
-  } finally { busy(false); }
+function addMsg(cls, text) {
+  const div = document.createElement("div");
+  div.className = `msg ${cls}`;
+  div.textContent = text;
+  $("conv").appendChild(div);
+  div.scrollIntoView({ behavior: "smooth", block: "end" });
+  return div;
+}
+
+function finishBot(div, data) {
+  div.textContent = data.text;
+  if (data.citations && data.citations.length) {
+    const c = document.createElement("div");
+    c.className = "cite";
+    c.innerHTML = "<b>Nguồn</b><br>" + data.citations.map(x => `[${x.n}] ${x.title}`).join("<br>");
+    div.appendChild(c);
+  }
+  if (data.usage) {
+    const u = document.createElement("div");
+    u.className = "usage";
+    let s = `${data.usage.input_tokens.toLocaleString()} in`;
+    if (data.usage.cache_read_input_tokens) s += ` + ${data.usage.cache_read_input_tokens.toLocaleString()} cache`;
+    s += ` / ${data.usage.output_tokens.toLocaleString()} out`;
+    if (data.usage.cost_usd != null) s += ` ≈ $${data.usage.cost_usd.toFixed(4)}`;
+    u.textContent = s;
+    div.appendChild(u);
+  }
+  div.scrollIntoView({ behavior: "smooth", block: "end" });
 }
 
 $("ask").onclick = async () => {
   const q = $("q").value.trim();
   if (!q) return;
-  const data = await post("/api/ask", { question: q, paper_id: $("paper").value,
-    section_type: $("stype").value, expand: $("expand").checked, language: $("lang").value });
-  if (data) render(data.text, data.citations);
+  $("q").value = "";
+  addMsg("user", q);
+  const bot = addMsg("bot", "…");
+  busy(true);
+  try {
+    const r = await fetch("/api/ask_stream", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: q, paper_id: $("paper").value,
+        section_type: $("stype").value, expand: $("expand").checked,
+        language: $("lang").value, history }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "", streamed = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split("\n\n");
+      buffer = events.pop();               // giữ phần chưa trọn vẹn
+      for (const ev of events) {
+        if (!ev.startsWith("data: ")) continue;
+        const data = JSON.parse(ev.slice(6));
+        if (data.type === "delta") {
+          streamed += data.text;
+          bot.textContent = streamed;      // chữ chạy dần
+        } else if (data.type === "done") {
+          finishBot(bot, data);            // thay bằng bản chốt có [n] + nguồn + chi phí
+          history.push({ question: q, answer: data.text });
+        }
+      }
+    }
+  } catch (e) {
+    bot.innerHTML = `<span class="err">Lỗi: ${e.message}</span>`;
+  } finally { busy(false); }
 };
 
 $("cmp").onclick = async () => {
@@ -133,8 +179,27 @@ $("cmp").onclick = async () => {
   const ids = [...multi.selectedOptions].map(o => o.value);
   const q = $("q").value.trim();
   if (!q || ids.length < 2) { $("status").textContent = "Cần câu hỏi + ≥2 paper."; return; }
-  const data = await post("/api/compare", { question: q, paper_ids: ids, language: $("lang").value });
-  if (data) render(data.text, []);
+  $("q").value = "";
+  addMsg("user", `[So sánh ${ids.join(" vs ")}] ${q}`);
+  const bot = addMsg("bot", "Đang so sánh… (map-reduce, có thể lâu hơn câu hỏi thường)");
+  busy(true);
+  try {
+    const r = await fetch("/api/compare", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: q, paper_ids: ids, language: $("lang").value }) });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+    finishBot(bot, { text: data.text, citations: [] });
+    history.push({ question: q, answer: data.text });
+  } catch (e) {
+    bot.innerHTML = `<span class="err">Lỗi: ${e.message}</span>`;
+  } finally { busy(false); }
+};
+
+$("reset").onclick = () => {
+  history = [];
+  $("conv").innerHTML = "";
+  $("status").textContent = "Đã bắt đầu hội thoại mới.";
 };
 
 $("q").addEventListener("keydown", e => {

@@ -57,7 +57,10 @@ python -m src.cli ingest
 Kiểm tra chéo:
 - `python -m src.cli list` → ra danh sách paper
 - Qdrant dashboard → collection `papers` → soi vài point: payload phải có `section`, `section_type` đúng
-- Chạy lại `python -m src.cli ingest` lần 2 → **số chunk không tăng** (idempotent)
+- Chạy lại `python -m src.cli ingest` lần 2 → in `không đổi, bỏ qua` cho từng paper (không tốn tiền embedding lại)
+- (Tự tin hơn nữa) đổi `MAX_CHUNK_TOKENS` trong config → `ingest` lại → in `chunking đổi — xóa N chunk cũ, index lại`; đổi về như cũ và ingest lần nữa
+
+Có PDF ngoài arXiv (journal, paper mua)? `python -m src.cli add đường/dẫn/file.pdf` — vào chung kho, hỏi đáp/filter như paper thường. Gỡ paper: `python -m src.cli remove <paper_id>`.
 
 ## Bước 5 — Hỏi thật (P2–P4 live)
 
@@ -70,7 +73,12 @@ python -m src.cli ask "phương pháp chính là gì?" --paper <id> --section-ty
 
 # So sánh (cần >=2 paper đã ingest)
 python -m src.cli compare "hai paper này khác nhau thế nào về cách đánh giá?" <id1> <id2>
+
+# Hội thoại nhiều lượt — hỏi tiếp "còn hạn chế thì sao?" mà không cần nhắc lại tên paper
+python -m src.cli chat
 ```
+
+Cuối mỗi câu trả lời có dòng chi phí `(N in / M out ≈ $x.xxxx)` — cộng dồn nhẩm được ngân sách thật so với ước tính trong SETUP.md.
 
 **Expected:** câu trả lời + mục `Nguồn:` liệt kê `[n] Tên paper — Tên section`. Câu trả lời **không có citation nào** với câu hỏi nội dung = có vấn đề, xem Troubleshooting.
 
@@ -90,15 +98,23 @@ python -m src.cli eval --stage full   --note "+expansion"
 
 **Expected:** 4 dòng mới trong `EXPERIMENTS.md`, recall tăng dần (hoặc ít nhất không giảm) qua từng stage. Đây chính là task 3.5 — từ giờ mọi thay đổi đều so với các con số này.
 
+Muốn đo thêm tầng generation (retrieval đúng chưa chắc câu trả lời không bịa):
+
+```bash
+python -m src.cli eval --faithfulness --n 5    # LLM-as-judge, có chi phí (~5 câu answer + 5 câu judge)
+```
+
 ## Bước 6b — UI web (P5.4)
 
 ```bash
 uvicorn src.webapp:app --port 8090
 ```
 
-Mở http://localhost:8090 — trang hỏi đáp với dropdown chọn paper/section,
-checkbox query expansion và chế độ so sánh nhiều paper (Ctrl+click chọn ≥2).
-**Expected:** danh sách paper hiện trong dropdown; hỏi ra câu trả lời + mục Nguồn.
+Mở http://localhost:8090 — trang hội thoại: câu trả lời **streaming chữ chạy dần**,
+nhớ ngữ cảnh để hỏi tiếp (nút 🗑 Mới để xóa), dropdown paper/section/ngôn ngữ trả lời,
+so sánh nhiều paper (Ctrl+click chọn ≥2), dòng chi phí dưới mỗi câu trả lời.
+**Expected:** danh sách paper hiện trong dropdown; hỏi ra chữ chạy dần rồi chốt
+bằng bản có đánh số [n] + mục Nguồn + chi phí; hỏi tiếp "còn X thì sao?" hiểu đúng ngữ cảnh.
 
 ## Bước 7 — (Tùy chọn) Auto-ingest hằng tuần (P5.2)
 

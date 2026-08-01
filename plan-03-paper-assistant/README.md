@@ -115,6 +115,17 @@ python -m src.cli ask "Paper này giải quyết vấn đề gì?" --lang en   #
 
 Đặt cố định qua `.env`: `ANSWER_LANGUAGE=en` (hoặc `vi`, `auto`). Áp dụng đồng nhất cho cả 3 đường sinh câu trả lời (citations API, generic/local LLM, map-reduce so sánh) vì cùng đi qua `system_prompt(language)`.
 
+### 4.7 Hội thoại nhiều lượt
+`python -m src.cli chat` (hoặc UI web) nhớ ngữ cảnh các câu trước: câu follow-up kiểu "còn hạn chế thì sao?" được **viết lại thành câu độc lập** (1 call model rẻ) trước khi retrieve — vì embedding câu mơ hồ sẽ trượt; còn model trả lời thì nhận nguyên hội thoại qua messages. `/reset` xóa ngữ cảnh.
+
+### 4.8 Các tiện ích vận hành
+- **Re-ingest an toàn:** đổi chunking rồi `ingest` lại → hệ thống tự phát hiện chunk thay đổi, xóa sạch bản cũ trước khi index lại (không tích rác làm méo recall); không đổi thì bỏ qua, không tốn tiền embedding.
+- **PDF ngoài arXiv:** `python -m src.cli add đường/dẫn/file.pdf` — journal, paper mua, bản thảo riêng.
+- **Xóa paper:** `python -m src.cli remove <paper_id>`.
+- **Đo faithfulness:** `python -m src.cli eval --faithfulness` — LLM-as-judge chấm câu trả lời có bám sát nguồn không (bổ khuyết cho recall vốn chỉ đo tầng retrieval); mượn từ Plan 12, bản rút gọn.
+- **Chi phí hiển thị sau mỗi câu:** token in/out/cache + ước tính $ (CLI lẫn UI).
+- **UI streaming:** chữ chạy dần khi model viết, hết thì thay bằng bản chốt có đánh số citation.
+
 ## 5. Milestones
 
 | Tuần | Việc | Definition of done |

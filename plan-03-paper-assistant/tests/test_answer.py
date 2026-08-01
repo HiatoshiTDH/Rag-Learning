@@ -100,6 +100,105 @@ def test_build_generic_prompt_language_en():
     assert "tiếng Anh" in prompt
 
 
+# ------------------------------------------------ hội thoại nhiều lượt (history)
+
+def test_rewrite_followup_no_history_is_passthrough():
+    from src.answer import rewrite_followup
+
+    calls = []
+    q = rewrite_followup("câu hỏi độc lập?", None, llm=lambda p: calls.append(p) or "x")
+    assert q == "câu hỏi độc lập?" and calls == []   # không history -> không tốn call nào
+
+
+def test_rewrite_followup_uses_history():
+    from src.answer import rewrite_followup
+
+    seen = {}
+    def llm(prompt):
+        seen["prompt"] = prompt
+        return "Hạn chế của phương pháp memory stream trong Generative Agents là gì?"
+
+    out = rewrite_followup("còn hạn chế thì sao?",
+                           [{"question": "Generative Agents dùng memory thế nào?",
+                             "answer": "Dùng memory stream..."}], llm=llm)
+    assert "Generative Agents" in out
+    assert "memory stream" in seen["prompt"]         # history có mặt trong prompt rewrite
+
+
+def test_build_answer_request_with_history_turns():
+    req = build_answer_request("câu tiếp?", SECTIONS,
+                               history=[{"question": "câu 1?", "answer": "trả lời 1"}])
+    msgs = req["messages"]
+    assert len(msgs) == 3
+    assert [m["role"] for m in msgs] == ["user", "assistant", "user"]
+    assert msgs[0]["content"] == "câu 1?" and msgs[1]["content"] == "trả lời 1"
+    # Lượt cuối vẫn là documents + câu hỏi hiện tại
+    assert msgs[2]["content"][-1] == {"type": "text", "text": "câu tiếp?"}
+
+
+def test_build_generic_prompt_with_history():
+    from src.answer import build_generic_prompt
+
+    prompt = build_generic_prompt("còn X?", SECTIONS,
+                                  history=[{"question": "q1", "answer": "a1"}])
+    assert "Hội thoại trước" in prompt and "q1" in prompt
+
+
+# --------------------------------------------------------- usage & chi phí
+
+def test_usage_from_response_with_cost():
+    from src.answer import usage_from_response
+
+    resp = SimpleNamespace(usage=SimpleNamespace(
+        input_tokens=10_000, output_tokens=1_000, cache_read_input_tokens=50_000))
+    u = usage_from_response(resp, "claude-opus-5")
+    # 10K*$5/M + 50K*$0.5/M + 1K*$25/M = 0.05 + 0.025 + 0.025 = 0.1
+    assert u["cost_usd"] == 0.1
+
+
+def test_usage_from_response_unknown_model_no_cost():
+    from src.answer import usage_from_response
+
+    resp = SimpleNamespace(usage=SimpleNamespace(
+        input_tokens=10, output_tokens=5, cache_read_input_tokens=0))
+    u = usage_from_response(resp, "qwen2.5:14b")
+    assert u["cost_usd"] is None and u["input_tokens"] == 10
+
+
+def test_format_answer_shows_usage():
+    from src.answer import format_answer
+
+    out = format_answer({"text": "x", "citations": [],
+                         "usage": {"input_tokens": 12345, "output_tokens": 678,
+                                   "cache_read_input_tokens": 0, "cost_usd": 0.0789}})
+    assert "12,345 in" in out and "$0.0789" in out
+
+
+# --------------------------------------------------------------- answer_stream
+
+def test_answer_stream_fallback_backend(monkeypatch):
+    """Backend không phải anthropic: 1 delta trọn gói + 1 done, citations vẫn có."""
+    import src.answer as m
+    from src import config
+
+    monkeypatch.setattr(config, "LLM_BACKEND", "openai_compat")
+    monkeypatch.setattr(m, "retrieve", lambda *a, **k: SECTIONS)
+    monkeypatch.setattr("src.llm.complete",
+                        lambda *a, **k: "Phương pháp X [1] cho kết quả [2].")
+
+    events = list(m.answer_stream("hỏi gì đó?"))
+    assert [e["type"] for e in events] == ["delta", "done"]
+    assert events[-1]["citations"] and events[-1]["usage"] is None
+
+
+def test_answer_stream_empty_retrieval(monkeypatch):
+    import src.answer as m
+
+    monkeypatch.setattr(m, "retrieve", lambda *a, **k: [])
+    events = list(m.answer_stream("hỏi gì đó?"))
+    assert len(events) == 1 and events[0]["type"] == "done"
+
+
 def test_router_heuristics():
     known = ["2304.03442", "2308.00001"]
     assert route("so sánh 2304.03442 và 2308.00001", known)["kind"] == "compare"
