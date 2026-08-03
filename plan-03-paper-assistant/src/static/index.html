@@ -33,6 +33,9 @@
   }
 
   * { box-sizing:border-box; }
+  /* Thuộc tính hidden phải LUÔN thắng — các rule display:flex bên dưới
+     (overlay, scope-note...) sẽ đè [hidden] của trình duyệt nếu thiếu dòng này */
+  [hidden] { display:none !important; }
   html, body { height:100%; }
   body { margin:0; background:var(--bg); color:var(--ink);
          font:14px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif; }
@@ -604,6 +607,9 @@ $("settings-btn").onclick = openSettings;
 $("set-close").onclick = () => $("settings-overlay").hidden = true;
 $("settings-overlay").addEventListener("click", e => {
   if (e.target === $("settings-overlay")) $("settings-overlay").hidden = true;
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") $("settings-overlay").hidden = true;
 });
 $("set-save").onclick = saveSettings;
 $("set-test").onclick = testSettings;
