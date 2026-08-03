@@ -7,6 +7,7 @@ rank-bm25         # BM25 cho hybrid search
 python-dotenv     # đọc .env
 fastapi           # UI web (5.4): uvicorn src.webapp:app --port 8090
 uvicorn
+python-multipart  # upload PDF từ UI
 httpx             # TestClient
 pytest
 

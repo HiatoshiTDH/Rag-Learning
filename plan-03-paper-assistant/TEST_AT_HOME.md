@@ -110,11 +110,15 @@ python -m src.cli eval --faithfulness --n 5    # LLM-as-judge, có chi phí (~5 
 uvicorn src.webapp:app --port 8090
 ```
 
-Mở http://localhost:8090 — trang hội thoại: câu trả lời **streaming chữ chạy dần**,
-nhớ ngữ cảnh để hỏi tiếp (nút 🗑 Mới để xóa), dropdown paper/section/ngôn ngữ trả lời,
-so sánh nhiều paper (Ctrl+click chọn ≥2), dòng chi phí dưới mỗi câu trả lời.
-**Expected:** danh sách paper hiện trong dropdown; hỏi ra chữ chạy dần rồi chốt
-bằng bản có đánh số [n] + mục Nguồn + chi phí; hỏi tiếp "còn X thì sao?" hiểu đúng ngữ cảnh.
+Mở http://localhost:8090 — app hoàn chỉnh: sidebar thư viện paper (bấm chọn phạm vi,
+tick ≥2 để so sánh, **＋ Thêm PDF upload từ trình duyệt**), chat streaming nhớ ngữ cảnh,
+nút **⚙ Cấu hình** trên header (nhập API key hoặc chuyển Local LLM — lưu bền vào .env),
+dòng chi phí dưới mỗi câu trả lời.
+**Expected:**
+- Hỏi → chữ chạy dần → bản chốt có [n] + Nguồn + chi phí; hỏi tiếp hiểu ngữ cảnh
+- ＋ Thêm PDF → chờ ~10-30s (GROBID parse) → paper mới hiện trong thư viện, hỏi được ngay
+- ⚙ → đổi backend/key → "Kiểm tra kết nối" xanh → chip header cập nhật; đổi embedding
+  backend sẽ có cảnh báo phải ingest lại (đúng thiết kế)
 
 ## Bước 7 — (Tùy chọn) Auto-ingest hằng tuần (P5.2)
 

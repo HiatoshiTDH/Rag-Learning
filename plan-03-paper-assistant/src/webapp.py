@@ -5,9 +5,10 @@ Một trang HTML tĩnh (không CDN, tự chứa) + 3 API JSON mỏng bọc quanh
 """
 
 import json
+import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -15,6 +16,9 @@ from src.answer import answer as answer_fn
 from src.answer import answer_stream as answer_stream_fn
 from src.answer import compare_papers as compare_fn
 from src.index import list_papers
+from src.ingest import add_local_pdf
+from src.ingest_all import ingest_one
+from src.settings import apply_settings, get_settings, test_connection
 
 app = FastAPI(title="paper-assistant-ui")
 
@@ -108,3 +112,46 @@ def api_ask_stream(body: AskIn):
 def api_compare(body: CompareIn):
     result = compare_fn(body.question, body.paper_ids, language=body.language or None)
     return {"text": result["text"], "per_paper": result.get("per_paper", [])}
+
+
+@app.post("/api/upload")
+def api_upload(file: UploadFile):
+    """Upload PDF từ trình duyệt -> add_local_pdf -> parse GROBID + index luôn.
+
+    Đồng bộ (chờ GROBID parse xong, ~10-30s) — UI hiển thị trạng thái chờ.
+    """
+    if not (file.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(400, "Chỉ nhận file .pdf")
+    # Ghi ra file tạm GIỮ NGUYÊN tên gốc (paper_id dẫn xuất từ tên file)
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_pdf = Path(tmp) / Path(file.filename).name
+        tmp_pdf.write_bytes(file.file.read())
+        paper_id = add_local_pdf(tmp_pdf)
+    try:
+        from src.embedding import get_embedder
+        from src.index import get_qdrant
+
+        chunks = ingest_one(paper_id, get_embedder(), get_qdrant())
+    except Exception as e:
+        raise HTTPException(
+            502, f"Đã nhận PDF ({paper_id}) nhưng index lỗi: {e}. "
+                 f"GROBID đã chạy chưa? (docker compose up -d)")
+    return {"paper_id": paper_id, "chunks": chunks}
+
+
+@app.get("/api/settings")
+def api_settings_get():
+    return get_settings()
+
+
+@app.post("/api/settings")
+def api_settings_post(body: dict):
+    try:
+        return apply_settings(body)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/settings/test")
+def api_settings_test():
+    return test_connection()

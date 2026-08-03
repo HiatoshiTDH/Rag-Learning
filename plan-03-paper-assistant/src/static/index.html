@@ -138,6 +138,53 @@
               padding:10px 12px; color:var(--muted); }
   .hint { max-width:780px; margin:6px auto 0; font-size:11.5px; color:var(--muted); }
 
+  /* ---------------- upload ---------------- */
+  #upload-btn { margin:0 14px 4px; padding:7px; border-radius:8px;
+                background:none; border:1px dashed var(--border); color:var(--muted);
+                width:calc(100% - 28px); }
+  #upload-btn:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+  #upload-btn:disabled { opacity:.6; cursor:wait; }
+  #upload-note { margin:0 14px 6px; font-size:11.5px; color:var(--muted); }
+  #upload-note.err { color:var(--err); }
+
+  /* ---------------- settings modal ---------------- */
+  #settings-btn { background:none; border:1px solid var(--border); border-radius:8px;
+                  padding:5px 10px; color:var(--ink); }
+  .overlay { position:fixed; inset:0; background:rgba(10,14,12,.45); z-index:40;
+             display:flex; align-items:flex-start; justify-content:center;
+             padding:6vh 16px; overflow-y:auto; }
+  .modal { background:var(--panel); border:1px solid var(--border); border-radius:14px;
+           width:100%; max-width:560px; box-shadow:0 12px 40px rgba(0,0,0,.25); }
+  .modal header { display:flex; align-items:center; justify-content:space-between;
+                  padding:14px 18px; border-bottom:1px solid var(--border); }
+  .modal header h3 { margin:0; font-size:15px; }
+  .modal header button { background:none; border:none; color:var(--muted); font-size:18px; }
+  .modal .body { padding:16px 18px; display:flex; flex-direction:column; gap:18px; }
+  .modal footer { padding:13px 18px; border-top:1px solid var(--border);
+                  display:flex; gap:10px; align-items:center; }
+  .set-group h4 { margin:0 0 8px; font-size:11px; text-transform:uppercase;
+                  letter-spacing:.08em; color:var(--muted); }
+  .backend-pick { display:flex; gap:8px; }
+  .backend-pick label { flex:1; border:1px solid var(--border); border-radius:10px;
+                        padding:10px 12px; cursor:pointer; display:block; }
+  .backend-pick input { accent-color:var(--accent); margin-right:6px; }
+  .backend-pick label:has(input:checked) { border-color:var(--accent);
+                                           background:var(--panel-2); }
+  .backend-pick .d { font-size:11.5px; color:var(--muted); margin-top:3px; }
+  .fields { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+  .fields label { font-size:12px; color:var(--muted); display:flex;
+                  flex-direction:column; gap:3px; }
+  .fields input, .fields select { padding:7px 10px; background:var(--bg);
+                                  border:1px solid var(--border); border-radius:8px; }
+  #set-save { background:var(--accent); color:var(--accent-ink); border:none;
+              border-radius:9px; padding:9px 20px; font-weight:600; }
+  #set-test { background:none; border:1px solid var(--border); border-radius:9px;
+              padding:9px 14px; color:var(--ink); }
+  #set-msg { font-size:12px; color:var(--muted); flex:1; }
+  #set-msg.ok { color:var(--ok); } #set-msg.err { color:var(--err); }
+  .warn-box { background:var(--panel-2); border:1px solid var(--warn); color:var(--warn);
+              border-radius:9px; padding:9px 12px; font-size:12.5px; }
+
   /* ---------------- mobile ---------------- */
   @media (max-width: 760px) {
     #menu-btn { display:block; }
@@ -160,12 +207,16 @@
     <option value="en">Trả lời: English</option>
     <option value="vi">Trả lời: Tiếng Việt</option>
   </select>
+  <button id="settings-btn" title="Cấu hình API key / Local LLM">⚙</button>
 </header>
 
 <div class="app">
   <aside class="side" id="side">
     <h2>Thư viện</h2>
     <div class="search"><input id="filter" placeholder="Lọc paper…" aria-label="Lọc paper"></div>
+    <button id="upload-btn">＋ Thêm PDF (journal, paper mua…)</button>
+    <div id="upload-note"></div>
+    <input type="file" id="upload-input" accept=".pdf" hidden>
     <div class="plist" id="plist"></div>
     <div class="controls">
       <div id="scope-note" hidden>
@@ -202,6 +253,64 @@
       <div class="hint">Enter gửi · Shift+Enter xuống dòng · <span id="status"></span></div>
     </div>
   </main>
+</div>
+
+<div class="overlay" id="settings-overlay" hidden>
+  <div class="modal" role="dialog" aria-label="Cấu hình">
+    <header><h3>⚙ Cấu hình</h3><button id="set-close" aria-label="Đóng">✕</button></header>
+    <div class="body">
+      <div class="set-group">
+        <h4>Model trả lời (LLM)</h4>
+        <div class="backend-pick">
+          <label><input type="radio" name="llm" value="anthropic">Claude API
+            <div class="d">Chất lượng cao nhất, citations có cấu trúc</div></label>
+          <label><input type="radio" name="llm" value="openai_compat">Local / miễn phí
+            <div class="d">Ollama, LM Studio, Groq, Gemini — $0</div></label>
+        </div>
+        <div class="fields" id="f-anthropic">
+          <label>Anthropic API key
+            <input id="s-ANTHROPIC_API_KEY" placeholder="sk-ant-… (bỏ trống = giữ key cũ)"></label>
+          <label>Model
+            <select id="s-ANSWER_MODEL">
+              <option value="claude-opus-5">claude-opus-5 — tốt nhất</option>
+              <option value="claude-sonnet-5">claude-sonnet-5 — cân bằng</option>
+              <option value="claude-haiku-4-5">claude-haiku-4-5 — rẻ/nhanh</option>
+            </select></label>
+        </div>
+        <div class="fields" id="f-compat">
+          <label>Endpoint (chuẩn OpenAI)
+            <input id="s-OPENAI_COMPAT_BASE_URL" placeholder="http://localhost:11434/v1 (Ollama)"></label>
+          <label>Model
+            <input id="s-OPENAI_COMPAT_MODEL" placeholder="qwen2.5:14b"></label>
+          <label>API key (nếu endpoint cần — Groq/Gemini)
+            <input id="s-OPENAI_COMPAT_API_KEY" placeholder="bỏ trống = giữ cũ / Ollama không cần"></label>
+        </div>
+      </div>
+
+      <div class="set-group">
+        <h4>Embedding &amp; Re-rank (tầng tìm kiếm)</h4>
+        <div class="backend-pick">
+          <label><input type="radio" name="embed" value="voyage">Voyage AI
+            <div class="d">Chất lượng cao, cần key</div></label>
+          <label><input type="radio" name="embed" value="local">Local bge-m3
+            <div class="d">$0, chạy trên máy, đa ngôn ngữ tốt</div></label>
+        </div>
+        <div class="fields" id="f-voyage">
+          <label>Voyage API key
+            <input id="s-VOYAGE_API_KEY" placeholder="pa-… (bỏ trống = giữ key cũ)"></label>
+        </div>
+        <div class="warn-box" id="embed-warn" hidden>
+          ⚠ Đổi embedding backend làm vector cũ lệch số chiều — sau khi lưu phải
+          xóa index rồi ingest lại (xem TEST_AT_HOME.md, mục Troubleshooting).
+        </div>
+      </div>
+    </div>
+    <footer>
+      <span id="set-msg"></span>
+      <button id="set-test">Kiểm tra kết nối</button>
+      <button id="set-save">Lưu</button>
+    </footer>
+  </div>
 </div>
 
 <!-- DEMO-SHIM-SLOT -->
@@ -403,6 +512,103 @@ EXAMPLES.forEach(x => {
   b.onclick = () => { $("q").value = x; autosize(); $("q").focus(); };
   $("examples").appendChild(b);
 });
+
+/* ---------------- upload PDF ---------------- */
+$("upload-btn").onclick = () => $("upload-input").click();
+$("upload-input").onchange = async () => {
+  const file = $("upload-input").files[0];
+  if (!file) return;
+  $("upload-input").value = "";
+  $("upload-btn").disabled = true;
+  const note = $("upload-note");
+  note.className = ""; note.textContent = `Đang parse "${file.name}" qua GROBID + index… (~10-30s)`;
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    const r = await fetch("/api/upload", { method: "POST", body: fd });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || JSON.stringify(data));
+    note.textContent = `✓ Đã index ${data.paper_id} (${data.chunks} chunk)`;
+    await loadPapers(); await loadStatus();
+  } catch (e) {
+    note.className = "err";
+    note.textContent = `Lỗi: ${e.message}`;
+  } finally { $("upload-btn").disabled = false; }
+};
+
+/* ---------------- settings ---------------- */
+const SET_FIELDS = ["ANTHROPIC_API_KEY", "ANSWER_MODEL", "OPENAI_COMPAT_BASE_URL",
+                    "OPENAI_COMPAT_MODEL", "OPENAI_COMPAT_API_KEY", "VOYAGE_API_KEY"];
+let savedEmbed = "";
+
+function syncBackendFields() {
+  const llm = document.querySelector('input[name="llm"]:checked')?.value;
+  $("f-anthropic").style.display = llm === "anthropic" ? "" : "none";
+  $("f-compat").style.display = llm === "openai_compat" ? "" : "none";
+  const embed = document.querySelector('input[name="embed"]:checked')?.value;
+  $("f-voyage").style.display = embed === "voyage" ? "" : "none";
+  $("embed-warn").hidden = !savedEmbed || embed === savedEmbed;
+}
+
+async function openSettings() {
+  const s = await (await fetch("/api/settings")).json();
+  for (const f of SET_FIELDS) {
+    const el = $("s-" + f);
+    if (el) el.value = s[f] || "";
+  }
+  document.querySelector(`input[name="llm"][value="${s.LLM_BACKEND || "anthropic"}"]`).checked = true;
+  const embed = ["voyage", "local"].includes(s.EMBED_BACKEND) ? s.EMBED_BACKEND : "voyage";
+  document.querySelector(`input[name="embed"][value="${embed}"]`).checked = true;
+  savedEmbed = embed;
+  $("set-msg").textContent = ""; $("set-msg").className = "";
+  syncBackendFields();
+  $("settings-overlay").hidden = false;
+}
+
+async function saveSettings() {
+  const body = {
+    LLM_BACKEND: document.querySelector('input[name="llm"]:checked').value,
+    EMBED_BACKEND: document.querySelector('input[name="embed"]:checked').value,
+  };
+  body.RERANK_BACKEND = body.EMBED_BACKEND;   // đi cặp: voyage-voyage / local-local
+  for (const f of SET_FIELDS) {
+    const el = $("s-" + f);
+    if (el) body[f] = el.value;
+  }
+  const msg = $("set-msg");
+  msg.className = ""; msg.textContent = "Đang lưu…";
+  try {
+    const r = await fetch("/api/settings", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.detail || "lỗi không rõ");
+    msg.className = "ok";
+    msg.textContent = "✓ Đã lưu vào .env" +
+      (data.warnings?.length ? " — " + data.warnings.join(" ") : "");
+    savedEmbed = body.EMBED_BACKEND;
+    syncBackendFields(); loadStatus();
+  } catch (e) { msg.className = "err"; msg.textContent = e.message; }
+}
+
+async function testSettings() {
+  const msg = $("set-msg");
+  msg.className = ""; msg.textContent = "Đang kiểm tra…";
+  try {
+    const data = await (await fetch("/api/settings/test", { method: "POST" })).json();
+    msg.className = data.ok ? "ok" : "err";
+    msg.textContent = (data.ok ? "✓ " : "✗ ") + data.message;
+  } catch (e) { msg.className = "err"; msg.textContent = e.message; }
+}
+
+$("settings-btn").onclick = openSettings;
+$("set-close").onclick = () => $("settings-overlay").hidden = true;
+$("settings-overlay").addEventListener("click", e => {
+  if (e.target === $("settings-overlay")) $("settings-overlay").hidden = true;
+});
+$("set-save").onclick = saveSettings;
+$("set-test").onclick = testSettings;
+document.querySelectorAll('input[name="llm"], input[name="embed"]')
+  .forEach(r => r.addEventListener("change", syncBackendFields));
 
 loadStatus(); loadPapers();
 </script>

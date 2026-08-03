@@ -127,6 +127,66 @@ def test_api_ask_empty_history_becomes_none(client, monkeypatch):
     assert captured["history"] is None
 
 
+def test_api_upload_pdf(client, monkeypatch):
+    """Upload PDF từ trình duyệt: nhận file -> add_local_pdf -> ingest_one."""
+    calls = {}
+    monkeypatch.setattr(webapp, "add_local_pdf",
+                        lambda p: calls.update(name=p.name) or "local-my-paper")
+    monkeypatch.setattr(webapp, "ingest_one", lambda pid, e, c: calls.update(pid=pid) or 42)
+    monkeypatch.setattr("src.embedding.get_embedder", lambda: object())
+    monkeypatch.setattr("src.index.get_qdrant", lambda: object())
+
+    r = client.post("/api/upload",
+                    files={"file": ("My Paper.pdf", b"%PDF-fake", "application/pdf")})
+    assert r.status_code == 200
+    assert r.json() == {"paper_id": "local-my-paper", "chunks": 42}
+    assert calls["name"] == "My Paper.pdf" and calls["pid"] == "local-my-paper"
+
+
+def test_api_upload_rejects_non_pdf(client):
+    r = client.post("/api/upload",
+                    files={"file": ("notes.txt", b"hello", "text/plain")})
+    assert r.status_code == 400
+
+
+def test_api_upload_ingest_error_gives_grobid_hint(client, monkeypatch):
+    monkeypatch.setattr(webapp, "add_local_pdf", lambda p: "local-x")
+    monkeypatch.setattr("src.embedding.get_embedder", lambda: object())
+    monkeypatch.setattr("src.index.get_qdrant", lambda: object())
+
+    def boom(pid, e, c):
+        raise RuntimeError("GROBID lỗi 503")
+    monkeypatch.setattr(webapp, "ingest_one", boom)
+
+    r = client.post("/api/upload",
+                    files={"file": ("x.pdf", b"%PDF", "application/pdf")})
+    assert r.status_code == 502 and "GROBID" in r.json()["detail"]
+
+
+def test_api_settings_endpoints(client, monkeypatch):
+    monkeypatch.setattr(webapp, "get_settings", lambda: {"LLM_BACKEND": "anthropic",
+                                                         "ANTHROPIC_API_KEY": "sk-ant…9xk2"})
+    captured = {}
+    monkeypatch.setattr(webapp, "apply_settings",
+                        lambda body: captured.update(body=body) or
+                        {"ok": True, "warnings": [], "changed": ["LLM_BACKEND"]})
+    monkeypatch.setattr(webapp, "test_connection",
+                        lambda: {"ok": True, "message": "ok"})
+
+    assert client.get("/api/settings").json()["ANTHROPIC_API_KEY"] == "sk-ant…9xk2"
+    r = client.post("/api/settings", json={"LLM_BACKEND": "openai_compat"})
+    assert r.json()["ok"] and captured["body"] == {"LLM_BACKEND": "openai_compat"}
+    assert client.post("/api/settings/test").json()["ok"]
+
+
+def test_api_settings_invalid_returns_400(client, monkeypatch):
+    def bad(body):
+        raise ValueError("LLM_BACKEND không nhận giá trị 'gpt4'")
+    monkeypatch.setattr(webapp, "apply_settings", bad)
+    r = client.post("/api/settings", json={"LLM_BACKEND": "gpt4"})
+    assert r.status_code == 400 and "gpt4" in r.json()["detail"]
+
+
 def test_api_ask_stream_sse(client, monkeypatch):
     """Endpoint streaming: các event delta rồi done, đúng định dạng SSE data: {json}."""
     def fake_stream(q, filters=None, expand=True, language=None, history=None):
