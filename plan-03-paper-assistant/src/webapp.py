@@ -55,6 +55,23 @@ def api_papers():
     return list_papers()
 
 
+@app.get("/api/status")
+def api_status():
+    """Chip trạng thái trên header UI: backend nào đang chạy, bao nhiêu paper."""
+    from src import config
+
+    model = (config.OPENAI_COMPAT_MODEL if config.LLM_BACKEND == "openai_compat"
+             else config.ANSWER_MODEL)
+    return {
+        "llm_backend": config.LLM_BACKEND,
+        "answer_model": model,
+        "embed_backend": config.EMBED_BACKEND,
+        "rerank_backend": config.RERANK_BACKEND,
+        "papers": len(list_papers()),
+        "demo": False,
+    }
+
+
 @app.post("/api/ask")
 def api_ask(body: AskIn):
     result = answer_fn(body.question, filters=_ask_filters(body), expand=body.expand,

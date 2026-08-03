@@ -38,6 +38,12 @@ def test_api_papers(client):
     assert client.get("/api/papers").json()[0]["paper_id"] == "2304.03442"
 
 
+def test_api_status(client):
+    s = client.get("/api/status").json()
+    assert s["papers"] == 1 and s["demo"] is False
+    assert "answer_model" in s and "embed_backend" in s
+
+
 def test_api_ask_shape_and_filters(client, monkeypatch):
     captured = {}
     monkeypatch.setattr(webapp, "answer_fn",

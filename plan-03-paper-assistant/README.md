@@ -5,6 +5,7 @@
 > - [PLAN.md](PLAN.md) — kế hoạch thực thi full: phase, task, DoD, ước lượng giờ, rủi ro, decision log
 > - [SETUP.md](SETUP.md) — mọi thứ cần chuẩn bị: phần mềm, API key, chi phí, checklist Phase 0
 > - [TEST_AT_HOME.md](TEST_AT_HOME.md) — **bài test tổng thể khi về máy nhà** (7 bước + troubleshooting)
+> - [demo/ux_demo.html](demo/ux_demo.html) — bản demo UI với backend giả lập: mở thẳng file trong trình duyệt là bấm thử được, không cần server
 > - [scripts/smoke_test.sh](scripts/smoke_test.sh) — bản tự động của bài test trên
 > - [docker-compose.yml](docker-compose.yml) + [.env.example](.env.example) — chạy GROBID/Qdrant ngay
 
